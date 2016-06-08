@@ -18,6 +18,7 @@ TESTS += Function
 TESTS += Menu
 TESTS += Recfield
 TESTS += Recordtype
+TESTS += Record
 TESTS += Registrar
 TESTS += Variable
 
