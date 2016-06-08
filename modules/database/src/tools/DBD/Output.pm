@@ -17,6 +17,7 @@ our @EXPORT = qw(&OutputDBD &OutputDB);
 use DBD;
 use DBD::Base;
 use DBD::Breaktable;
+use DBD::Database;
 use DBD::Device;
 use DBD::Driver;
 use DBD::Link;
@@ -41,8 +42,8 @@ sub OutputDBD {
 }
 
 sub OutputDB {
-    my ($out, $dbd) = @_;
-    OutputRecords($out, $dbd->records);
+    my ($out, $db) = @_;
+    OutputRecords($out, $db->records);
 }
 
 sub OutputMenus {

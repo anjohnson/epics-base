@@ -32,7 +32,6 @@ sub new {
         'DBD::Function'   => {},
         'DBD::Menu'       => {},
         'DBD::Recordtype' => {},
-        'DBD::Record'     => {},
         'DBD::Registrar'  => {},
         'DBD::Variable'   => {},
         'COMMENTS'        => [],
@@ -110,14 +109,6 @@ sub recordtypes {
 sub recordtype {
     my ($this, $rtyp_name) = @_;
     return $this->{'DBD::Recordtype'}->{$rtyp_name};
-}
-
-sub records {
-    return shift->{'DBD::Record'};
-}
-sub record {
-    my ($this, $record_name) = @_;
-    return $this->{'DBD::Record'}->{$record_name};
 }
 
 sub registrars {

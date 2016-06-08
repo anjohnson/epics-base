@@ -16,6 +16,7 @@ use FindBin qw($Bin);
 use lib ("$Bin/../../lib/perl");
 
 use DBD;
+use DBD::Database;
 use DBD::Parser;
 use DBD::Output;
 use EPICS::Getopts;
@@ -30,6 +31,7 @@ getopts('DI@S@o:V') or
 my @path = map { split /[:;]/ } @opt_I; # FIXME: Broken on Win32?
 my $macros = EPICS::macLib->new(@opt_S);
 my $dbd = DBD->new();
+my $db = DBD::Database->new($dbd);
 
 $macros->suppressWarning(!$opt_V);
 $DBD::Record::macrosOk = !$opt_V;
@@ -44,19 +46,33 @@ if ($opt_D) {
     $dep = "\$(COMMON_DIR)/$dep";
 }
 
-die "dbExpand.pl: No input files for $opt_o\n" if !@ARGV;
+die "dbExpand.pl: No input DBD file given for $opt_o\n" if !@ARGV;
+
+# First load the DBD file
+my $file = shift @ARGV;
+eval {
+    &ParseDBD($dbd, &Readfile($file, $macros, \@opt_I));
+};
+if ($@) {
+    warn "dbExpand.pl: $@";
+    my $outfile = $opt_o ? " to create '$opt_o$dot_d'" : '';
+    die "  while reading DBD file '$file'$outfile\n";
+}
+
+die "dbExpand.pl: No input DB files given for $opt_o\n" if !@ARGV;
 
 my $errors = 0;
 
+# Now load all the DB files listed
 while (@ARGV) {
     my $file = shift @ARGV;
     eval {
-        &ParseDBD($dbd, &Readfile($file, $macros, \@opt_I));
+        &ParseDB($db, &Readfile($file, $macros, \@opt_I));
     };
     if ($@) {
         warn "dbExpand.pl: $@";
         my $outfile = $opt_o ? " to create '$opt_o$dot_d'" : '';
-        warn "  while reading '$file'$outfile\n";
+        warn "  while reading DB file '$file'$outfile\n";
         warn "  Your Makefile may need this dependency rule:\n",
             "    $dep: \$(COMMON_DIR)/$file\n"
             if $@ =~ m/Can't find file '$file'/;
@@ -81,7 +97,7 @@ if ($opt_o) {
     $out = *STDOUT;
 }
 
-&OutputDB($out, $dbd);
+&OutputDB($out, $db);
 
 if ($opt_o) {
     close $out or die "Closing $opt_o failed: $!\n";

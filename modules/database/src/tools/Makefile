@@ -11,6 +11,7 @@ include $(TOP)/configure/CONFIG
 PERL_MODULES += DBD.pm
 PERL_MODULES += DBD/Base.pm
 PERL_MODULES += DBD/Breaktable.pm
+PERL_MODULES += DBD/Database.pm
 PERL_MODULES += DBD/Device.pm
 PERL_MODULES += DBD/Driver.pm
 PERL_MODULES += DBD/Link.pm

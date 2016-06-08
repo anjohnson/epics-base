@@ -12,11 +12,12 @@ use warnings;
 require Exporter;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(&ParseDBD);
+our @EXPORT = qw(&ParseDB &ParseDBD);
 
 use DBD;
 use DBD::Base;
 use DBD::Breaktable;
+use DBD::Database;
 use DBD::Device;
 use DBD::Driver;
 use DBD::Link;
@@ -30,6 +31,34 @@ use DBD::Variable;
 
 our $debug=0;
 our $allowAutoDeclarations=0;
+
+sub ParseDB {
+    (my $db, $_) = @_;
+    my $dbd = $db->dbd;
+    while (1) {
+        parseCommon($dbd);
+        if (m/\G g?record \s* \( \s* $RXstr \s*, \s* $RXstr \s* \) \s* \{/xgc) {
+            print "Record: $1, $2\n" if $debug;
+            my ($record_type, $record_name) = unquote($1, $2);
+            parse_record($db, $record_type, $record_name);
+        }
+        elsif (m/\G alias \s* \( \s* $RXstr \s*, \s* $RXstr \s* \)/xgc) {
+            print "Alias: $1, $2\n" if $debug;
+            my ($record_name, $alias) = unquote($1, $2);
+            my $rec = $db->record($record_name);
+            dieContext("Alias '$alias' refers to unknown record '$record_name'")
+                unless defined $rec;
+            dieContext("Can't create alias '$alias', name already used")
+                if defined $db->record($alias);
+            $rec->add_alias($alias);
+            $db->add($rec, $alias);
+        }
+        else {
+            last unless m/\G (.*) $/mxgc;
+            dieContext("Syntax error in '$1'");
+        }
+    }
+}
 
 sub ParseDBD {
     (my $dbd, $_) = @_;
@@ -70,22 +99,6 @@ sub ParseDBD {
             my ($recordtype_name) = unquote($1);
             parse_recordtype($dbd, $recordtype_name);
         }
-        elsif (m/\G g?record \s* \( \s* $RXstr \s*, \s* $RXstr \s* \) \s* \{/xgc) {
-            print "Record: $1, $2\n" if $debug;
-            my ($record_type, $record_name) = unquote($1, $2);
-            parse_record($dbd, $record_type, $record_name);
-        }
-        elsif (m/\G alias \s* \( \s* $RXstr \s*, \s* $RXstr \s* \)/xgc) {
-            print "Alias: $1, $2\n" if $debug;
-            my ($record_name, $alias) = unquote($1, $2);
-            my $rec = $dbd->record($record_name);
-            dieContext("Alias '$alias' refers to unknown record '$record_name'")
-                unless defined $rec;
-            dieContext("Can't create alias '$alias', name already used")
-                if defined $dbd->record($alias);
-            $rec->add_alias($alias);
-            $dbd->add($rec, $alias);
-        }
         elsif (m/\G variable \s* \( \s* $RXstr \s* \)/xgc) {
             print "Variable: $1\n" if $debug;
             my ($variable_name) = unquote($1);
@@ -112,7 +125,7 @@ sub ParseDBD {
             }
             $rtyp->add_device(DBD::Device->new($link_type, $dset, $choice));
         } else {
-            last unless m/\G (.*) $/moxgc;
+            last unless m/\G (.*) $/mxgc;
             dieContext("Syntax error in '$1'");
         }
     }
@@ -191,7 +204,7 @@ sub parse_menu {
             popContext("menu($menu_name)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }
@@ -219,7 +232,7 @@ sub parse_breaktable {
             popContext("breaktable($breaktable_name)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }
@@ -251,17 +264,18 @@ sub parse_recordtype {
             popContext("recordtype($record_type)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }
 }
 
 sub parse_record {
-    my ($dbd, $record_type, $record_name) = @_;
+    my ($db, $record_type, $record_name) = @_;
     pushContext("record($record_type, $record_name)");
+    my $dbd = $db->dbd;
     my $rtyp = $dbd->recordtype($record_type);
-    my $rec = $dbd->record($record_name);
+    my $rec = $db->record($record_name);
     if (defined $rec) {
         my $otyp = $rec->recordtype;
         my $otyp_name = $otyp->name;
@@ -293,15 +307,15 @@ sub parse_record {
             dieContext("Can't create alias '$alias', name in use")
                 if defined $dbd->record($1);
             $rec->add_alias($alias);
-            $dbd->add($rec, $alias);
+            $db->add($rec, $alias);
         }
         elsif (m/\G \}/xgc) {
             print " Record-End:\n" if $debug;
-            $dbd->add($rec);
+            $db->add($rec);
             popContext("record($record_type, $record_name)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }
@@ -324,7 +338,7 @@ sub parse_field {
             popContext("field($field_name, $field_type)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }
