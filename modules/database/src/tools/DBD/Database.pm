@@ -15,6 +15,8 @@ sub new {
     my $this = {
         'DBD'             => $dbd,
         'DBD::Record'     => {},
+        'DESCRIPTION'     => undef,
+        'PORTS'           => {},
         'COMMENTS'        => [],
         'POD'             => []
     };
@@ -42,6 +44,18 @@ sub dbd {
     return shift->{DBD};
 }
 
+sub description {
+    my ($this, $desc) = @_;
+    $this->{DESCRIPTION} = $desc
+        if defined $desc;
+    return $this->{DESCRIPTION};
+}
+
+sub is_template {
+    my $this = shift;
+    return defined $this->{DESCRIPTION};
+}
+
 sub add_comment {
     my $this = shift;
     push @{$this->{COMMENTS}}, @_;
@@ -66,6 +80,20 @@ sub records {
 sub record {
     my ($this, $record_name) = @_;
     return $this->{'DBD::Record'}->{$record_name};
+}
+
+sub add_port {
+    my ($this, $name, $value, $desc) = @_;
+    $this->{'PORTS'}->{$name} = [$value, $desc];
+}
+
+sub ports {
+    return shift->{'PORTS'};
+}
+
+sub port {
+    my ($this, $port_name) = @_;
+    return $this->{'PORTS'}->{$port_name};
 }
 
 1;

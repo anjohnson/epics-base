@@ -20,13 +20,13 @@ use DBD::Breaktable;
 use DBD::Database;
 use DBD::Device;
 use DBD::Driver;
+use DBD::Function;
 use DBD::Link;
 use DBD::Menu;
 use DBD::Recordtype;
 use DBD::Recfield;
 use DBD::Record;
 use DBD::Registrar;
-use DBD::Function;
 use DBD::Variable;
 
 our $debug=0;
@@ -52,6 +52,11 @@ sub ParseDB {
                 if defined $db->record($alias);
             $rec->add_alias($alias);
             $db->add($rec, $alias);
+        }
+        elsif (m/\G template \s* \( \s* $RXstr \s* \) \s* \{/oxgc) {
+            print "Template: $1\n" if $debug;
+            my ($description) = unquote($1);
+            parse_template($db, $description);
         }
         else {
             last unless m/\G (.*) $/mxgc;
@@ -339,6 +344,29 @@ sub parse_field {
             return;
         } else {
             m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+            dieContext("Syntax error in '$1'");
+        }
+    }
+}
+
+sub parse_template {
+    my ($db, $description) = @_;
+    $db->description($description);
+    pushContext("template($description)");
+    while(1) {
+        parseCommon($db);
+        if (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s*
+                (?: , \s* $RXstr \s*) \)/oxgc) {
+            print " Template-Port: $1, $2, $3\n" if $debug;
+            my ($port_name, $value, $port_desc) = unquote($1, $2, $3);
+            $db->add_port($port_name, $value, $port_desc);
+        }
+        elsif (m/\G \}/oxgc) {
+            print " Template-End:\n" if $debug;
+            popContext("template($description)");
+            return;
+        } else {
+            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }

@@ -42,7 +42,17 @@ sub OutputDBD {
 }
 
 sub OutputDB {
-    my ($out, $db) = @_;
+    my ($out, $db, $flatten) = @_;
+    if ($flatten) {
+        # Expand instances of sub-templates here...
+    }
+    elsif ($db->is_template) {
+        printf $out "template(\"%s\") {\n", $db->description;
+        while (my ($name, $vref) = each %{$db->ports}) {
+            printf $out "    port(%s, \"%s\", \"%s\")\n", $name, @{$vref};
+        }
+        print $out "}\n";
+    }
     OutputRecords($out, $db->records);
 }
 
