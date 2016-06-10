@@ -31,7 +31,6 @@ getopts('DI@S@o:V') or
 my @path = map { split /[:;]/ } @opt_I; # FIXME: Broken on Win32?
 my $macros = EPICS::macLib->new(@opt_S);
 my $dbd = DBD->new();
-my $db = DBD::Database->new($dbd);
 
 $macros->suppressWarning(!$opt_V);
 $DBD::Record::macrosOk = !$opt_V;
@@ -62,10 +61,12 @@ if ($@) {
 die "dbExpand.pl: No input DB files given for $opt_o\n" if !@ARGV;
 
 my $errors = 0;
+my %databases;
 
 # Now load all the DB files listed
 while (@ARGV) {
     my $file = shift @ARGV;
+    my $db = DBD::Database->new($dbd, $file);
     eval {
         &ParseDB($db, &Readfile($file, $macros, \@opt_I));
     };
@@ -77,6 +78,9 @@ while (@ARGV) {
             "    $dep: \$(COMMON_DIR)/$file\n"
             if $@ =~ m/Can't find file '$file'/;
         ++$errors;
+    }
+    else {
+        $databases{$file} = $db;
     }
 }
 
@@ -93,11 +97,13 @@ die "dbExpand.pl: Exiting due to errors\n" if $errors;
 my $out;
 if ($opt_o) {
     open $out, '>', $opt_o or die "Can't create $opt_o: $!\n";
-} else {
+}
+else {
     $out = *STDOUT;
 }
 
-&OutputDB($out, $db);
+&OutputDB($out, $_)
+    foreach values %databases;
 
 if ($opt_o) {
     close $out or die "Closing $opt_o failed: $!\n";

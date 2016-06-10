@@ -9,10 +9,11 @@ use DBD::Record;
 use Carp;
 
 sub new {
-    my ($class, $dbd) = @_;
+    my ($class, $dbd, $name) = @_;
     confess "DBD::Database::new: Not a DBD"
         unless $dbd->isa('DBD');
     my $this = {
+        'NAME'            => $name,
         'DBD'             => $dbd,
         'DBD::Record'     => {},
         'DESCRIPTION'     => undef,
@@ -38,6 +39,10 @@ sub add {
     else {
         $this->{$obj_class}->{$obj_name} = $obj;
     }
+}
+
+sub name {
+    return shift->{NAME};
 }
 
 sub dbd {

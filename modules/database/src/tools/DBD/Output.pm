@@ -43,6 +43,7 @@ sub OutputDBD {
 
 sub OutputDB {
     my ($out, $db, $flatten) = @_;
+    printf $out "# Expansion of %s\n\n", $db->name;
     if ($flatten) {
         # Expand instances of sub-templates here...
     }
@@ -51,7 +52,7 @@ sub OutputDB {
         while (my ($name, $vref) = each %{$db->ports}) {
             printf $out "    port(%s, \"%s\", \"%s\")\n", $name, @{$vref};
         }
-        print $out "}\n";
+        print $out "}\n\n";
     }
     OutputRecords($out, $db->records);
 }
