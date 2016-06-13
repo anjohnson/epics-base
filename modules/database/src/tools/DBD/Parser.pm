@@ -20,6 +20,7 @@ use DBD::Breaktable;
 use DBD::Database;
 use DBD::Device;
 use DBD::Driver;
+use DBD::Expand;
 use DBD::Function;
 use DBD::Link;
 use DBD::Menu;
@@ -32,38 +33,60 @@ use DBD::Variable;
 our $debug=0;
 our $allowAutoDeclarations=0;
 
-sub ParseDB {
-    (my $db, $_) = @_;
-    my $dbd = $db->dbd;
+# Common Parsing Subroutines
+
+sub parseCommon {
+    my ($obj) = @_;
     while (1) {
-        parseCommon($dbd);
-        if (m/\G g?record \s* \( \s* $RXstr \s*, \s* $RXstr \s* \) \s* \{/xgc) {
-            print "Record: $1, $2\n" if $debug;
-            my ($record_type, $record_name) = unquote($1, $2);
-            parse_record($db, $record_type, $record_name);
+        # Skip leading whitespace
+        m/\G \s* /xgc;
+
+        # Extract POD
+        if (m/\G ( = [a-zA-Z] .* ) \n/xgc) {
+            $obj->add_pod($1, parsePod());
         }
-        elsif (m/\G alias \s* \( \s* $RXstr \s*, \s* $RXstr \s* \)/xgc) {
-            print "Alias: $1, $2\n" if $debug;
-            my ($record_name, $alias) = unquote($1, $2);
-            my $rec = $db->record($record_name);
-            dieContext("Alias '$alias' refers to unknown record '$record_name'")
-                unless defined $rec;
-            dieContext("Can't create alias '$alias', name already used")
-                if defined $db->record($alias);
-            $rec->add_alias($alias);
-            $db->add($rec, $alias);
-        }
-        elsif (m/\G template \s* \( \s* $RXstr \s* \) \s* \{/oxgc) {
-            print "Template: $1\n" if $debug;
-            my ($description) = unquote($1);
-            parse_template($db, $description);
-        }
-        else {
-            last unless m/\G (.*) $/mxgc;
-            dieContext("Syntax error in '$1'");
+        elsif (m/\G \# /xgc) {
+            if (m/\G \# ! BEGIN \{ ( [^}]* ) \} ! \# \# \n/xgc) {
+                print "File-Begin: $1\n" if $debug;
+                pushContext("file '$1'");
+            }
+            elsif (m/\G \# ! END \{ ( [^}]* ) \} ! \# \# \n?/xgc) {
+                print "File-End: $1\n" if $debug;
+                popContext("file '$1'");
+            }
+            else {
+                m/\G (.*) \n/xgc;
+                $obj->add_comment($1);
+                print "Comment: $1\n" if $debug;
+            }
+        } else {
+            return;
         }
     }
 }
+
+sub unquote {
+    return map { m/^ ("?) (.*) \1 $/ox; $2 } @_;
+}
+
+sub parsePod {
+    pushContext("Pod markup");
+    my @pod;
+    while (1) {
+        if (m/\G ( =cut .* ) \n?/xgc) {
+            popContext("Pod markup");
+            return @pod;
+        }
+        elsif (m/\G ( .* ) $/xgc) {
+            dieContext("Unexpected end of input file, Pod block not closed");
+        }
+        elsif (m/\G ( .* ) \n/xgc) {
+            push @pod, $1
+        }
+    }
+}
+
+# Parsing Database Definitions
 
 sub ParseDBD {
     (my $dbd, $_) = @_;
@@ -132,62 +155,6 @@ sub ParseDBD {
         } else {
             last unless m/\G (.*) $/mxgc;
             dieContext("Syntax error in '$1'");
-        }
-    }
-}
-
-sub parseCommon {
-    my ($obj) = @_;
-    while (1) {
-        # Skip leading whitespace
-        m/\G \s* /xgc;
-
-        # Extract POD
-        if (m/\G ( = [a-zA-Z] )/xgc) {
-            # The above regex was split from the one below for performance.
-            # Using m/\G ( = [a-zA-Z] .* ) \n/ is slow in Perl 5.20 and later.
-            my $directive = $1;
-            m/\G ( .* ) \n/xgc;
-            $directive .= $1;
-            $obj->add_pod($directive, parsePod());
-        }
-        elsif (m/\G \# /xgc) {
-            if (m/\G \# ! BEGIN \{ ( [^}]* ) \} ! \# \# \n/xgc) {
-                print "File-Begin: $1\n" if $debug;
-                pushContext("file '$1'");
-            }
-            elsif (m/\G \# ! END \{ ( [^}]* ) \} ! \# \# \n?/xgc) {
-                print "File-End: $1\n" if $debug;
-                popContext("file '$1'");
-            }
-            else {
-                m/\G (.*) \n/xgc;
-                $obj->add_comment($1);
-                print "Comment: $1\n" if $debug;
-            }
-        } else {
-            return;
-        }
-    }
-}
-
-sub unquote {
-    return map { m/^ ("?) (.*) \1 $/x; $2 } @_;
-}
-
-sub parsePod {
-    pushContext("Pod markup");
-    my @pod;
-    while (1) {
-        if (m/\G ( =cut .* ) \n?/xgc) {
-            popContext("Pod markup");
-            return @pod;
-        }
-        elsif (m/\G ( .* ) $/xgc) {
-            dieContext("Unexpected end of input file, Pod block not closed");
-        }
-        elsif (m/\G ( .* ) \n/xgc) {
-            push @pod, $1
         }
     }
 }
@@ -275,6 +242,69 @@ sub parse_recordtype {
     }
 }
 
+sub parse_field {
+    my ($rtyp, $field_name, $field_type) = @_;
+    my $fld = DBD::Recfield->new($field_name, $field_type);
+    pushContext("field($field_name, $field_type)");
+    while(1) {
+        parseCommon($fld);
+        if (m/\G (\w+) \s* \( \s* $RXstr \s* \)/xgc) {
+            print "  Field-Attribute: $1, $2\n" if $debug;
+            my ($attr, $value) = unquote($1, $2);
+            $fld->add_attribute($attr, $value);
+        }
+        elsif (m/\G \}/xgc) {
+            print "  Field-End:\n" if $debug;
+            $rtyp->add_field($fld);
+            popContext("field($field_name, $field_type)");
+            return;
+        } else {
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+            dieContext("Syntax error in '$1'");
+        }
+    }
+}
+
+# Parsing Database Instances
+
+sub ParseDB {
+    (my $db, $_) = @_;
+    my $dbd = $db->dbd;
+    while (1) {
+        parseCommon($dbd);
+        if (m/\G g?record \s* \( \s* $RXstr \s*, \s* $RXstr \s* \) \s* \{/xgc) {
+            print "Record: $1, $2\n" if $debug;
+            my ($record_type, $record_name) = unquote($1, $2);
+            parse_record($db, $record_type, $record_name);
+        }
+        elsif (m/\G alias \s* \( \s* $RXstr \s*, \s* $RXstr \s* \)/xgc) {
+            print "Alias: $1, $2\n" if $debug;
+            my ($record_name, $alias) = unquote($1, $2);
+            my $rec = $db->record($record_name);
+            dieContext("Alias '$alias' refers to unknown record '$record_name'")
+                unless defined $rec;
+            dieContext("Can't create alias '$alias', name already used")
+                if defined $db->record($alias);
+            $rec->add_alias($alias);
+            $db->add($rec, $alias);
+        }
+        elsif (m/\G template \s* \( \s* $RXstr \s* \) \s* \{/xgc) {
+            print "Template: $1\n" if $debug;
+            my ($description) = unquote($1);
+            parse_template($db, $description);
+        }
+        elsif (m/\G expand \s* \( \s* $RXstr \s*, \s* $RXstr \s* \) \s* \{/xgc) {
+            print "Expand: $1, $2\n" if $debug;
+            my ($filename, $instance) = unquote($1, $2);
+            parse_expand($db, $filename, $instance);
+        }
+        else {
+            last unless m/\G (.*) $/mxgc;
+            dieContext("Syntax error in '$1'");
+        }
+    }
+}
+
 sub parse_record {
     my ($db, $record_type, $record_name) = @_;
     pushContext("record($record_type, $record_name)");
@@ -326,21 +356,21 @@ sub parse_record {
     }
 }
 
-sub parse_field {
-    my ($rtyp, $field_name, $field_type) = @_;
-    my $fld = DBD::Recfield->new($field_name, $field_type);
-    pushContext("field($field_name, $field_type)");
+sub parse_template {
+    my ($db, $description) = @_;
+    $db->description($description);
+    pushContext("template($description)");
     while(1) {
-        parseCommon($fld);
-        if (m/\G (\w+) \s* \( \s* $RXstr \s* \)/xgc) {
-            print "  Field-Attribute: $1, $2\n" if $debug;
-            my ($attr, $value) = unquote($1, $2);
-            $fld->add_attribute($attr, $value);
+        parseCommon($db);
+        if (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s*
+                (?: , \s* $RXstr \s*) \)/xgc) {
+            print " Template-Port: $1, $2, $3\n" if $debug;
+            my ($port_name, $value, $port_desc) = unquote($1, $2, $3);
+            $db->add_port($port_name, $value, $port_desc);
         }
         elsif (m/\G \}/xgc) {
-            print "  Field-End:\n" if $debug;
-            $rtyp->add_field($fld);
-            popContext("field($field_name, $field_type)");
+            print " Template-End:\n" if $debug;
+            popContext("template($description)");
             return;
         } else {
             m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
@@ -349,24 +379,24 @@ sub parse_field {
     }
 }
 
-sub parse_template {
-    my ($db, $description) = @_;
-    $db->description($description);
-    pushContext("template($description)");
+sub parse_expand {
+    my ($db, $filename, $instance) = @_;
+    pushContext("expand($filename, $instance)");
+    my $expansion = DBD::Expand->new($filename, $instance);
     while(1) {
         parseCommon($db);
-        if (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s*
-                (?: , \s* $RXstr \s*) \)/oxgc) {
-            print " Template-Port: $1, $2, $3\n" if $debug;
-            my ($port_name, $value, $port_desc) = unquote($1, $2, $3);
-            $db->add_port($port_name, $value, $port_desc);
+        if (m/\G macro \s* \( \s* $RXstr \s* , \s* $RXstr \s* \)/xgc) {
+            print " Expand-Macro: $1, $2\n" if $debug;
+            my ($macro_name, $value) = unquote($1, $2);
+            $expansion->add_macro($macro_name, $value);
         }
-        elsif (m/\G \}/oxgc) {
-            print " Template-End:\n" if $debug;
-            popContext("template($description)");
+        elsif (m/\G \}/xgc) {
+            print " Expand-End:\n" if $debug;
+            $db->add($expansion);
+            popContext("expand($filename, $instance)");
             return;
         } else {
-            m/\G (.*) $/moxgc or dieContext("Unexpected end of input");
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
             dieContext("Syntax error in '$1'");
         }
     }

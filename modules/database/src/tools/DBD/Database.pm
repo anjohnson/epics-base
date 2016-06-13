@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use DBD::Base;
+use DBD::Expand;
 use DBD::Record;
 
 use Carp;
@@ -15,6 +16,7 @@ sub new {
     my $this = {
         'NAME'            => $name,
         'DBD'             => $dbd,
+        'DBD::Expand'     => {},
         'DBD::Record'     => {},
         'DESCRIPTION'     => undef,
         'PORTS'           => {},
@@ -87,9 +89,18 @@ sub record {
     return $this->{'DBD::Record'}->{$record_name};
 }
 
+sub expands {
+    return shift->{'DBD::Expand'};
+}
+sub expand {
+    my ($this, $instance) = @_;
+    return $this->{'DBD::Expand'}->{$instance};
+}
+
 sub add_port {
     my ($this, $name, $value, $desc) = @_;
-    $this->{'PORTS'}->{$name} = [$value, $desc];
+    $this->{'PORTS'}->{$name} = $value;
+    $this->{'PORT_DESCRIPTIONS'}->{$name} = $desc;
 }
 
 sub ports {
@@ -99,6 +110,11 @@ sub ports {
 sub port {
     my ($this, $port_name) = @_;
     return $this->{'PORTS'}->{$port_name};
+}
+
+sub port_description {
+    my ($this, $port_name) = @_;
+    return $this->{'PORT_DESCRIPTIONS'}->{$port_name};
 }
 
 1;

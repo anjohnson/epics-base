@@ -29,6 +29,8 @@ use DBD::Registrar;
 use DBD::Function;
 use DBD::Variable;
 
+# Output Database Definitions
+
 sub OutputDBD {
     my ($out, $dbd) = @_;
     OutputMenus($out, $dbd->menus);
@@ -39,22 +41,6 @@ sub OutputDBD {
     OutputFunctions($out, $dbd->functions);
     OutputVariables($out, $dbd->variables);
     OutputBreaktables($out, $dbd->breaktables);
-}
-
-sub OutputDB {
-    my ($out, $db, $flatten) = @_;
-    printf $out "# Expansion of %s\n\n", $db->name;
-    if ($flatten) {
-        # Expand instances of sub-templates here...
-    }
-    elsif ($db->is_template) {
-        printf $out "template(\"%s\") {\n", $db->description;
-        while (my ($name, $vref) = each %{$db->ports}) {
-            printf $out "    port(%s, \"%s\", \"%s\")\n", $name, @{$vref};
-        }
-        print $out "}\n\n";
-    }
-    OutputRecords($out, $db->records);
 }
 
 sub OutputMenus {
@@ -134,6 +120,26 @@ sub OutputBreaktables {
     }
 }
 
+# Output Database Instances
+
+sub OutputDB {
+    my ($out, $db, $flatten) = @_;
+    printf $out "# Expansion of %s\n\n", $db->name;
+    if ($flatten) {
+        # Expand instances of sub-templates here...
+    }
+    elsif ($db->is_template) {
+        printf $out "template(\"%s\") {\n", $db->description;
+        while (my ($name, $value) = each %{$db->ports}) {
+            my $desc = $db->port_description($name);
+            printf $out "    port(%s, \"%s\", \"%s\")\n", $name, $value, $desc;
+        }
+        print $out "}\n\n";
+    }
+    OutputRecords($out, $db->records);
+    OutputExpands($out, $db->expands);
+}
+
 sub OutputRecords {
     my ($out, $records) = @_;
     while (my ($name, $rec) = each %{$records}) {
@@ -149,6 +155,16 @@ sub OutputRecords {
         }
         printf $out "    info(\"%s\", \"%s\")\n", $_, $rec->info_value($_)
             foreach $rec->info_names;
+        print $out "}\n";
+    }
+}
+
+sub OutputExpands {
+    my ($out, $expands) = @_;
+    while (my ($instance, $exp) = each %{$expands}) {
+        printf $out "expand(\"%s\", %s) {\n", $exp->filename, $instance;
+        printf $out "    macro(%s, \"%s\")\n", $_, $exp->macro($_)
+            foreach keys %{$exp->macros};
         print $out "}\n";
     }
 }

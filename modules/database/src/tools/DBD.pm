@@ -12,13 +12,12 @@ use warnings;
 use DBD::Base;
 use DBD::Breaktable;
 use DBD::Driver;
+use DBD::Function;
 use DBD::Link;
 use DBD::Menu;
 use DBD::Recordtype;
 use DBD::Recfield;
-use DBD::Record;
 use DBD::Registrar;
-use DBD::Function;
 use DBD::Variable;
 
 use Carp;
