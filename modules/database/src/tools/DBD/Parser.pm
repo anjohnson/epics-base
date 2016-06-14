@@ -382,17 +382,34 @@ sub parse_template {
 sub parse_expand {
     my ($db, $filename, $instance) = @_;
     pushContext("expand($filename, $instance)");
-    my $expansion = DBD::Expand->new($filename, $instance);
+    my $exp = $db->expand($instance);
+    if ($exp) {
+        my $oldfile = $exp->filename;
+        dieContext("Instance name $instance already used for file $oldfile")
+            unless $oldfile eq $filename;
+    }
+    else {
+        $exp = DBD::Expand->new($filename, $instance);
+    }
     while(1) {
         parseCommon($db);
         if (m/\G macro \s* \( \s* $RXstr \s* , \s* $RXstr \s* \)/xgc) {
             print " Expand-Macro: $1, $2\n" if $debug;
             my ($macro_name, $value) = unquote($1, $2);
-            $expansion->add_macro($macro_name, $value);
+            my $oldval = $exp->macro($macro_name);
+            if (defined $oldval) {
+                if ($oldval ne $value) {
+                    warnContext("Macro $macro_name redefined with new value");
+                    $exp->add_macro($macro_name, $value);
+                }
+            }
+            else {
+                $exp->add_macro($macro_name, $value);
+            }
         }
         elsif (m/\G \}/xgc) {
             print " Expand-End:\n" if $debug;
-            $db->add($expansion);
+            $db->add($exp);
             popContext("expand($filename, $instance)");
             return;
         } else {
