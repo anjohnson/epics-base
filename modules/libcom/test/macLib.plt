@@ -7,7 +7,7 @@
 
 use lib '@TOP@/lib/perl';
 
-use Test::More tests => 35;
+use Test::More tests => 36;
 
 use EPICS::macLib;
 
@@ -70,6 +70,9 @@ is $m->expandString('$(c)'), 'fum', 'installMacros, $(c)';
 
 is $m->expandString('$(d)'), '$(d)', 'installMacros deletion';
 
+$m->putValues({e => 'Eek', f => 'Foo'});
+is $m->expandString('$(e),$(f)'), 'Eek,Foo', 'putValues';
+
 $m->pushScope;
 is $m->expandString('$(a)'), 'foo', 'pushScope, $(a)';
 $m->putValue('a', 'grinch');
@@ -81,4 +84,3 @@ is $m->expandString('$(b)'), '$(b)', '$(b) deleted in child';
 $m->popScope;
 is $m->expandString('$(a)'), 'foo', 'popScope, $(a) restored';
 is $m->expandString('$(b)'), 'baz', '$(b) restored';
-

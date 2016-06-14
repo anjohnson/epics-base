@@ -103,6 +103,13 @@ sub putValue ($$$) {
     $this->{dirty} = 1;
 }
 
+sub putValues {
+    my ($this, $inputs) = @_;
+    while (my ($name, $value) = each %{$inputs}) {
+        $this->putValue($name, $value);
+    }
+}
+
 sub pushScope ($) {
     my ($this) = @_;
     unshift @{$this->{macros}}, {};
