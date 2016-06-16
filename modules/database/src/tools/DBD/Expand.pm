@@ -7,11 +7,23 @@ sub init {
     $this->SUPER::init($instance, 'template instance');
     $this->{'FILENAME'} = $filename;
     $this->{'MACROS'} = {};
+    $this->{'DBD::Database'} = undef;
     return $this;
 }
 
 sub filename {
     return shift->{'FILENAME'};
+}
+
+sub database {
+    return shift->{'DBD::Database'};
+}
+
+sub link {
+    my ($this, $db) = @_;
+    confess "DBD::Expand::link: Not a DB"
+        unless $dbd->isa('DBD::Database');
+    $this->{'DBD::Database'} = $db;
 }
 
 sub add_macro {
