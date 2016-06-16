@@ -10,11 +10,11 @@ use DBD::Record;
 use Carp;
 
 sub new {
-    my ($class, $dbd, $name) = @_;
+    my ($class, $dbd, $filename) = @_;
     confess "DBD::Database::new: Not a DBD"
         unless $dbd->isa('DBD');
     my $this = {
-        'NAME'            => $name,
+        'NAME'            => $filename,
         'DBD'             => $dbd,
         'DBD::Expand'     => {},
         'DBD::Record'     => {},
