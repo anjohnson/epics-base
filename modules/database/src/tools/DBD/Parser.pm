@@ -362,8 +362,13 @@ sub parse_template {
     pushContext("template($description)");
     while(1) {
         parseCommon($db);
-        if (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s*
-                (?: , \s* $RXstr \s*) \)/xgc) {
+        if (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s* \)/xgc) {
+            print " Template-Port: $1, $2\n" if $debug;
+            my ($port_name, $value) = unquote($1, $2);
+            $db->add_port($port_name, $value, '');
+        }
+        elsif (m/\G port \s* \( \s* $RXstr \s* , \s* $RXstr \s* , \s*
+                $RXstr \s* \)/xgc) {
             print " Template-Port: $1, $2, $3\n" if $debug;
             my ($port_name, $value, $port_desc) = unquote($1, $2, $3);
             $db->add_port($port_name, $value, $port_desc);
