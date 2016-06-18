@@ -17,13 +17,15 @@ require Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT = qw(&pushContext &popContext &dieContext &warnContext &is_reserved
-    &escapeCcomment &escapeCstring $RXident $RXname $RXuint $RXint $RXhex $RXoct
-    $RXuintx $RXintx $RXnum $RXdqs $RXstr);
+    &escapeCcomment &escapeCstring $RXident $RXname $RXtmpid
+    $RXuint $RXint $RXhex $RXoct $RXuintx $RXintx $RXnum $RXdqs $RXstr
+);
 
 
 our $RXident = qr/ [a-zA-Z] [a-zA-Z0-9_]* /x;
 our $RXnchr =  qr/ [a-zA-Z0-9_\-:.\[\]<>;] /x;
 our $RXname =  qr/ $RXnchr+ (?: [{}] $RXnchr+ )* /x;
+our $RXtmpid = qr/ [a-zA-Z0-9_:-]+ /x;
 our $RXhex =   qr/ (?: 0 [xX] [0-9A-Fa-f]+ ) /x;
 our $RXoct =   qr/ 0 [0-7]* /x;
 our $RXuint =  qr/ [0-9]+ /x;

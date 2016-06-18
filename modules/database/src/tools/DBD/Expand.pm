@@ -1,6 +1,9 @@
 package DBD::Expand;
+
 use DBD::Base;
 @ISA = qw(DBD::Base);
+
+use Carp;
 
 sub init {
     my ($this, $filename, $instance) = @_;
@@ -9,6 +12,19 @@ sub init {
     $this->{'MACROS'} = {};
     $this->{'DBD::Database'} = undef;
     return $this;
+}
+
+sub identifier {
+    my ($this, $id, $what) = @_;
+    confess "DBD::Expand::identifier: $what undefined!"
+        unless defined $id;
+    if ($id !~ m/^$RXtmpid$/o) {
+        my @message;
+        push @message, "A $what may contain only letters, digits",
+            "and these special characters: _ : -" unless $warned++;
+        dieContext("Illegal $what '$id'", @message);
+    }
+    return $id;
 }
 
 sub filename {
@@ -22,7 +38,7 @@ sub database {
 sub link {
     my ($this, $db) = @_;
     confess "DBD::Expand::link: Not a DB"
-        unless $dbd->isa('DBD::Database');
+        unless $db->isa('DBD::Database');
     $this->{'DBD::Database'} = $db;
 }
 
