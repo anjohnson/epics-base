@@ -10,6 +10,7 @@ sub init {
     $this->SUPER::init($instance, 'template instance');
     $this->{'FILENAME'} = $filename;
     $this->{'MACROS'} = {};
+    $this->{'INSTANCE_VARS'} = {};
     $this->{'DBD::Database'} = undef;
     return $this;
 }
@@ -54,6 +55,10 @@ sub macros {
 sub macro {
     my ($this, $macro_name) = @_;
     return $this->{'MACROS'}->{$macro_name};
+}
+
+sub instance_vars {
+    return shift->{'INSTANCE_VARS'};
 }
 
 sub equals {

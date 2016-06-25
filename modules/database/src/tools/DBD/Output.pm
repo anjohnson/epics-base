@@ -12,7 +12,9 @@ use warnings;
 require Exporter;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(&OutputDBD &OutputDB &FlattenDB);
+our @EXPORT = qw(&OutputDBD &OutputDB &FlattenDB &FlattenMacros);
+
+our $debug = 0;
 
 use DBD;
 use DBD::Base;
@@ -154,20 +156,10 @@ sub FlattenDB {
     while (my ($instance, $exp) = each %{$db->expands}) {
         die "Database not loaded for $instance"
             unless $exp->database;
-        # Set up the macros to be passed down
-        my $macros = EPICS::macLib->new();
-        $macros->suppressWarning($vars->{noWarn});
-        while (my ($name, $raw) = each %{$exp->macros}) {
-            # Expand any macros in the parent's context
-            my $value = $vars->expandString($raw);
-            $macros->putValue($name, $value);
-        }
-        # Collect the port values from this template instance
-        while (my ($name, $raw) = each %{$exp->database->ports}) {
-            # Expand any macros in the child's context
-            my $value = $macros->expandString($raw);
-            $vars->putValue("$instance.$name", $value);
-        }
+        # Get the macros to be passed down
+        my $macros = $exp->instance_vars->{$instance};
+        die "Macros not defined for $instance"
+            unless $macros;
         # Expand the child template instance
         printf $flat "\n# expand(\"%s\", %s)\n", $exp->filename, $instance;
         FlattenDB($flat, $exp->database, $macros);
@@ -179,6 +171,47 @@ sub FlattenDB {
     die "Undefined macros present with -V\n"
         unless defined $cooked;
     print $out $cooked;
+}
+
+sub FlattenMacros {
+    my ($db, $vars) = @_;
+    printf "FlattenMacros(%s)\n", $db->name if $debug;
+    my $undefs = 0;
+    # Go through each child template instance to be expanded
+    while (my ($instance, $exp) = each %{$db->expands}) {
+        die "Database not loaded for $instance"
+            unless $exp->database;
+        # Set up the macros to be passed down
+        my $macros;
+        if (exists $exp->instance_vars->{$instance}) {
+            $macros = $exp->instance_vars->{$instance};
+        }
+        else {
+            $macros = EPICS::macLib->new();
+            $exp->instance_vars->{$instance} = $macros;
+        }
+        $macros->suppressWarning($vars->{noWarn});
+        while (my ($name, $raw) = each %{$exp->macros}) {
+            # Expand macros in macro value using the parent's context
+            my $value = $vars->expandString($raw);
+            $macros->putValue($name, $value);
+            $undefs++ if $value =~ m/ \$ [\(\{] /x;
+            print "  Macro $name = $value\n" if $debug;
+        }
+        # Collect the port values from this template instance
+        while (my ($name, $raw) = each %{$exp->database->ports}) {
+            # Expand macros in the port value using the child's context
+            my $value = $macros->expandString($raw);
+            $vars->putValue("$instance.$name", $value);
+            $undefs++ if $value =~ m/ \$ [\(\{] /x;
+            print "  Port $instance.$name = $value\n" if $debug;
+        }
+        # Recurse into child template instances
+        $undefs += FlattenMacros($exp->database, $macros);
+        $macros->reportMacros if $debug;
+    }
+    printf "FlattenMacros(%s) returning %d\n", $db->name, $undefs if $debug;
+    return $undefs;
 }
 
 sub OutputRecords {
