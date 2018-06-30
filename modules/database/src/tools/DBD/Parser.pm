@@ -66,7 +66,7 @@ sub parseCommon {
 }
 
 sub unquote {
-    return map { m/^ ("?) (.*) \1 $/ox; $2 } @_;
+    return map { m/^ ("?) (.*) \1 $/x; $2 } @_;
 }
 
 sub parsePod {

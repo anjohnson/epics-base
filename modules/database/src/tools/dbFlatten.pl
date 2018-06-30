@@ -48,7 +48,7 @@ die "dbFlatten.pl: No input DBD file given for $opt_o\n"
 # First load the DBD file
 my $file = shift @ARGV;
 eval {
-    ParseDBD($dbd, &Readfile($file, $macros, \@opt_I));
+    ParseDBD($dbd, Readfile($file, $macros, \@opt_I));
 };
 if ($@) {
     warn "dbFlatten.pl: $@";
@@ -70,7 +70,7 @@ while (@ARGV) {
     next if exists $databases{$file};
     my $db = DBD::Database->new($dbd, $file);
     eval {
-        &ParseDB($db, &Readfile($file, 0, \@opt_I));
+        ParseDB($db, Readfile($file, 0, \@opt_I));
     };
     if ($@) {
         warn "dbFlatten.pl: $@";
