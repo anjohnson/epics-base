@@ -22,6 +22,8 @@ TESTS += Record
 TESTS += Registrar
 TESTS += Variable
 
+TESTS += Parser
+
 TESTSCRIPTS_HOST += $(TESTS:%=%.t)
 
 include $(TOP)/configure/RULES
