@@ -152,7 +152,11 @@ sub ParseDBD {
                 $dbd->add($rtyp);
             }
             $rtyp->add_device(DBD::Device->new($link_type, $dset, $choice));
-        } else {
+        }
+        elsif (m/\G \s* \Z/mxgc) {
+            last;
+        }
+        else {
             last unless m/\G (.*) $/mxgc;
             dieContext("Syntax error in '$1'");
         }
@@ -299,6 +303,9 @@ sub ParseDB {
             print "Expand: $1, $2\n" if $debug;
             my ($filename, $instance) = unquote($1, $2);
             parse_expand($db, $filename, $instance);
+        }
+        elsif (m/\G \s* \Z/mxgc) {
+            last;
         }
         else {
             last unless m/\G (.*) $/mxgc;
