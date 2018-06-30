@@ -232,6 +232,8 @@ sub parse_recordtype {
         }
         elsif (m/\G \}/xgc) {
             print " Recordtype-End:\n" if $debug;
+            map { $_->set_menu($dbd->menu($_->attribute("menu"))); }
+                grep $_->dbf_type eq 'DBF_MENU', $rtyp->fields();
             $dbd->add($rtyp);
             popContext("recordtype($record_type)");
             return;

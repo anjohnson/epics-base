@@ -433,15 +433,28 @@ package DBD::Recfield::DBF_MENU;
 use DBD::Base;
 our @ISA = qw(DBD::Recfield);
 
+sub set_menu {
+    my ($this, $menu) = @_;
+    return unless ref($menu) eq 'DBD::Menu';
+    $this->{MENU} = $menu;
+    my $default = $this->attribute('initial');
+    return unless defined($default);
+    warnContext("Warning: Default value '$default' of DBF_MENU field '$this->{NAME}'",
+        " is not a legal choice of menu '$menu->{NAME}'")
+        unless $menu->legal_choice($default);
+}
+
 sub legal_value {
-    # FIXME: If we know the menu name and the menu exists, check further
+    my ($this, $value) = @_;
+    if (defined $this->{MENU}) {
+        return $this->{MENU}->legal_choice($value);
+    }
     return 1;
 }
 
 sub check_valid {
     my ($this) = @_;
-    my $name = $this->name;
-    dieContext("Menu name missing for DBF_MENU field '$name'")
+    dieContext("Menu name not set for DBF_MENU field '$this->{NAME}'")
         unless defined($this->attribute("menu"));
     $this->SUPER::check_valid;
 }
