@@ -43,6 +43,7 @@ sub choice {
 
 sub legal_choice {
     my ($this, $value) = @_;
+    return 1 if ($value < scalar($this->{CHOICE_LIST}) || $value == 65535);
     return exists $this->{CHOICE_INDEX}->{$value};
 }
 
