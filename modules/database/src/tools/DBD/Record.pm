@@ -45,7 +45,7 @@ sub identifier {
     elsif ($id !~ m/^$RXname$/) {
         my @message;
         push @message, "A $what should contain only letters, digits and these",
-            "special characters: _ - : . [ ] < > ;" unless $warned++;
+            "special characters: _ - + : [ ] < > ;" unless $warned++;
         warnContext("Deprecated $what '$id'", @message);
     }
     return $id;
