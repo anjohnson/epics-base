@@ -224,13 +224,24 @@ sub OutputRecords {
         foreach my $recfield ($rec->recfields) {
             my $field_name = $recfield->name;
             my $value = $rec->get_field($field_name);
-            printf $out "    field(%s, \"%s\")\n", $field_name, $value
+            printf $out "    field(%s, %s)\n", $field_name, qval($value)
                 if defined $value;
         }
-        printf $out "    info(\"%s\", \"%s\")\n", $_, $rec->info_value($_)
+        printf $out "    info(\"%s\", %s)\n", $_, qval($rec->info_value($_))
             foreach $rec->info_names;
         print $out "}\n";
     }
+}
+
+sub qval {
+    local ($_) = @_;
+    return $_
+        if m/^ (?: \{ .* \} | \[ .* \] | " .* " ) $/x;
+
+    return "\"$_\""
+        if m/[^a-zA-Z0-9_\-+.]/x;
+
+    return $_;
 }
 
 sub OutputExpands {

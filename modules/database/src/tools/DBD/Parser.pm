@@ -335,14 +335,18 @@ sub parse_record {
     }
     while (1) {
         parseCommon($rec);
-        if (m/\G field \s* \( \s* $RXstr \s* , \s* $RXstr \s* \)/xgc) {
-            print " Record-Field: $1, $2\n" if $debug;
-            my ($field_name, $value) = unquote($1, $2);
-            $rec->put_field($field_name, $value);
+        if (m/\G field \s* \( \s* $RXstr \s* , \s*/xgc ) {
+            print " Record-Field: $1\n" if $debug;
+            my ($field_name) = unquote($1);
+            my $value = parse_json("$record_name field $field_name");
+            m/\G \s* \)/xgc or dieContext("Syntax error");
+            $rec->put_field($field_name, unquote($value));
         }
-        elsif (m/\G info \s* \( \s* $RXstr \s* , \s* $RXstr \s* \)/xgc) {
-            print " Record-Info: $1, $2\n" if $debug;
-            my ($info_name, $value) = unquote($1, $2);
+        elsif (m/\G info \s* \( \s* $RXstr \s* , \s*/xgc) {
+            print " Record-Info: $1\n" if $debug;
+            my ($info_name) = unquote($1);
+            my $value = parse_json("$record_name info $info_name");
+            m/\G \s* \)/xgc or dieContext("Syntax error");
             $rec->add_info($info_name, $value);
         }
         elsif (m/\G alias \s* \( \s* $RXstr \s* \)/xgc) {
@@ -363,6 +367,88 @@ sub parse_record {
             dieContext("Syntax error in '$1'");
         }
     }
+}
+
+sub parse_json {
+    my ($context) = @_;
+    pushContext($context);
+    if (m/\G ( null | true | false | $RXnum | $RXjstr | $RXjbare ) \s* /xgc) {
+        print " JSON: $1\n" if $debug;
+        my $value = $1;
+        popContext($context);
+        return $value;
+    }
+    if (m/\G \[ \s* /xgc) {
+        print " JSON: array\n" if $debug;
+        my $array = parse_json_elements();
+        popContext($context);
+        return "[$array]";
+    }
+    if (m/\G \{ \s* /xgc) {
+        print " JSON: object\n" if $debug;
+        my $members = parse_json_members();
+        popContext($context);
+        return "\{$members\}";
+    }
+    if (m/\G ( $RXmacro ) /xgc) {
+        print " Macro: $1\n" if $debug;
+        my $value = $1;
+        popContext($context);
+        return $value;
+    }
+    m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+        dieContext("Syntax error in '$1'");
+}
+
+sub parse_json_elements {
+    pushContext("JSON array");
+    my @elements = ();
+    do {
+        if (m/\G \] \s* /xgc) {
+            popContext("JSON array");
+            return join(',', @elements, '');
+        }
+        push @elements, parse_json("array element");
+    } while (m/\G , \s* /xgc);
+    if (m/\G \] \s* /xgc) {
+        popContext("JSON array");
+        return join(',', @elements);
+    }
+    m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+        dieContext("Syntax error in '$1'");
+}
+
+sub parse_json_members {
+    pushContext("JSON object");
+    my @members = ();
+    do {
+        if (m/\G \} \s* /xgc) {
+            popContext("JSON object");
+            return join(',', @members, '');
+        }
+        if (m/\G ( $RXjstr | $RXjbare ) \s* : \s* /xgc) {
+            print " JSON key: $1\n" if $debug;
+            my $key = $1;
+            my $value = parse_json("member value");
+            push @members, "$key:$value";
+        }
+        elsif (m/\G ( $RXmacro ) \s* : \s* /xgc) {
+            print " Macro key: $1\n" if $debug;
+            my $key = $1;
+            my $value = parse_json("member value");
+            push @members, "$key:$value";
+        }
+        else {
+            m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+                dieContext("Syntax error in '$1'");
+        }
+    } while (m/\G , \s* /xgc);
+    if (m/\G \} \s* /xgc) {
+        popContext("JSON object");
+        return join(',', @members);
+    }
+    m/\G (.*) $/mxgc or dieContext("Unexpected end of input");
+        dieContext("Syntax error in '$1'");
 }
 
 sub parse_template {

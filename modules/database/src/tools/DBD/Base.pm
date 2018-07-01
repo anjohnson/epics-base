@@ -17,24 +17,31 @@ require Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT = qw(&pushContext &popContext &dieContext &warnContext &is_reserved
-    &escapeCcomment &escapeCstring $RXident $RXname $RXtmpid
+    &escapeCcomment &escapeCstring $RXident $RXname $RXtmpid $RXmacro
     $RXuint $RXint $RXhex $RXoct $RXuintx $RXintx $RXnum $RXdqs $RXstr
+    $RXjstr $RXjbare
 );
 
 
 our $RXident = qr/ [a-zA-Z] [a-zA-Z0-9_]* /x;
-our $RXnchr =  qr/ [a-zA-Z0-9_\-:.\[\]<>;] /x;
-our $RXname =  qr/ $RXnchr+ (?: [{}] $RXnchr+ )* /x;
-our $RXtmpid = qr/ [a-zA-Z0-9_:-]+ /x;
+our $RXnchr =  qr/ [a-zA-Z0-9_\-+:\[\]<>;] /x;
+our $RXname =  qr/ $RXnchr+ (?: [{}]+ $RXnchr+ )* /x;
+our $RXmchr =  qr/ [a-zA-Z0-9_:-] /x;
+our $RXtmpid = qr/ $RXmchr+ /x;
+our $RXmacro = qr/ \$ \( $RXmchr+ (?: \. $RXmchr+ )? \) /x;
 our $RXhex =   qr/ (?: 0 [xX] [0-9A-Fa-f]+ ) /x;
 our $RXoct =   qr/ 0 [0-7]* /x;
-our $RXuint =  qr/ [0-9]+ /x;
+our $RXuint =  qr/ (?: [0-9] | [1-9] [0-9]+) /x;
 our $RXint =   qr/ -? $RXuint /x;
 our $RXuintx = qr/ ( $RXhex | $RXoct | $RXuint ) /x;
 our $RXintx =  qr/ ( $RXhex | $RXoct | $RXint ) /x;
-our $RXnum =   qr/ -? (?: [0-9]+ | [0-9]* \. [0-9]+ ) (?: [eE] [-+]? [0-9]+ )? /x;
+our $RXnum =   qr/ $RXint (?: \. [0-9]+ )? (?: [eE] [-+]? [0-9]+ )? /x;
 our $RXdqs =   qr/ " (?> \\. | [^"\\] )* " /x;
 our $RXstr =   qr/ ( $RXname | $RXnum | $RXdqs ) /x;
+
+our $RXjchr =  qr< [^"\\\0-\x1f] | (?: \\ ["\\/bfnrt]) | (?: \\u [0-9A-Fa-f]{4} ) >x;
+our $RXjstr =  qr/ " $RXjchr* "/x;
+our $RXjbare = qr/ [a-zA-Z0-9_\-+.]+ /x;
 
 our @context;
 
