@@ -390,7 +390,7 @@ sub parse_json {
         popContext($context);
         return "\{$members\}";
     }
-    if (m/\G ( $RXmacro ) /xgc) {
+    if ($macrosOk && m/\G ( $RXmacro ) /xgc) {
         print " Macro: $1\n" if $debug;
         my $value = $1;
         popContext($context);
@@ -432,7 +432,7 @@ sub parse_json_members {
             my $value = parse_json("member value");
             push @members, "$key:$value";
         }
-        elsif (m/\G ( $RXmacro ) \s* : \s* /xgc) {
+        elsif ($macrosOk && m/\G ( $RXmacro ) \s* : \s* /xgc) {
             print " Macro key: $1\n" if $debug;
             my $key = $1;
             my $value = parse_json("member value");
