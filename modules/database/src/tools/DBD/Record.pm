@@ -39,10 +39,12 @@ sub identifier {
     my ($this, $id, $what) = @_;
     confess "DBD::Record::identifier: $what undefined!"
         unless defined $id;
+    my $name = $id;
     if ($macrosOk) {
-        # FIXME - Check name with macro
+        # Remove all macros for the purposes of this check
+        do {} while $name =~ s/$RXmacro/m/g;
     }
-    elsif ($id !~ m/^$RXname$/) {
+    if ($name !~ m/^ $RXname $/x) {
         my @message;
         push @message, "A $what should contain only letters, digits and these",
             "special characters: _ - + : [ ] < > ;" unless $warned++;
