@@ -23,14 +23,14 @@ use EPICS::macLib;
 our ($opt_D, @opt_I, @opt_S, $opt_o, $opt_V);
 
 getopts('DI@S@o:V') or
-    die "Usage: dbFlatten.pl [-D] [-I dir] [-S macro=val] [-o out.db] in.dbd in.vdb";
+    die "Usage: dbFlatten.pl [-D] [-V] [-I dir] [-S macro=val] [-o out.db] in.dbd in.vdb";
 
 my @path = map { split /[:;]/ } @opt_I; # FIXME: Broken on Win32?
 my $macros = EPICS::macLib->new(@opt_S);
 my $dbd = DBD->new();
 
 $macros->suppressWarning(!$opt_V);
-$DBD::Record::macrosOk = !$opt_V;
+$DBD::Base::macrosOk = !$opt_V;
 
 # Calculate filename for the dependency warning message below
 my $dep = $opt_o;

@@ -17,11 +17,13 @@ require Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT = qw(&pushContext &popContext &dieContext &warnContext &is_reserved
-    &escapeCcomment &escapeCstring $RXident $RXname $RXtmpid $RXmacro
+    &escapeCcomment &escapeCstring $macrosOk
+    $RXident $RXname $RXtmpid $RXmacro
     $RXuint $RXint $RXhex $RXoct $RXuintx $RXintx $RXnum $RXdqs $RXstr
     $RXjstr $RXjbare
 );
 
+our $macrosOk;  # FIXME: This flag should be per-db, not global
 
 our $RXident = qr/ [a-zA-Z] [a-zA-Z0-9_]* /x;
 our $RXnchr =  qr/ [a-zA-Z0-9_\-+:\[\]<>;] /x;
@@ -29,6 +31,7 @@ our $RXname =  qr/ $RXnchr+ (?: [{}]+ $RXnchr+ )* /x;
 our $RXmchr =  qr/ [a-zA-Z0-9_:-] /x;
 our $RXtmpid = qr/ $RXmchr+ /x;
 our $RXmacro = qr/ \$ \( $RXmchr+ (?: \. $RXmchr+ )? \) /x;
+
 our $RXhex =   qr/ (?: 0 [xX] [0-9A-Fa-f]+ ) /x;
 our $RXoct =   qr/ 0 [0-7]* /x;
 our $RXuint =  qr/ (?: [0-9] | [1-9] [0-9]+) /x;

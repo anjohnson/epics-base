@@ -54,7 +54,7 @@ my $f = $t->field('VAL');
 is $f->dbf_type, 'DBF_MENU', 'VAL is DBF_MENU';
 ok $f->{MENU}->legal_choice('Zero'), 'Zero is legal choice';
 
-$DBD::Record::macrosOk = 1;
+$DBD::Base::macrosOk = 1;
 my $db = DBD::Database->new($dbd, 'a.db');
 ParseDB($db, <<'__END__');
     record(r, "$(P):a") {

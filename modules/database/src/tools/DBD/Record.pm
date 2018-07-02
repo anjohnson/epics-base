@@ -15,7 +15,6 @@ our @ISA = qw(DBD::Base);
 
 use Carp;
 
-our ($macrosOk);
 my $warned;
 
 sub init {
