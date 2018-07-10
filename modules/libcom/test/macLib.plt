@@ -7,7 +7,7 @@
 
 use lib '@TOP@/lib/perl';
 
-use Test::More tests => 36;
+use Test::More tests => 37;
 
 use EPICS::macLib;
 
@@ -23,7 +23,13 @@ is $m->expandString(''), '', 'Empty string';
     open STDERR, '>', \$output;
     is $m->expandString('$(undef)'), undef, 'Warning $(undef)';
     chomp $output;
-    is $output, q/macLib: macro 'undef' is undefined (expanding string '$(undef)')/, 'macLib error message';
+    is $output, q/macLib: macro 'undef' is undefined (expanding string '$(undef)')/,
+        'macLib error message';
+}
+
+{
+    my $n = EPICS::macLib->new('a=1','b=2','c=3,');
+    is $n->expandString('$(a):$(b):$(c)'), '1:2:3', 'Initializer list correct';
 }
 
 $m->suppressWarning(1);
