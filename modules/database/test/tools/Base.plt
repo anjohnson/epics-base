@@ -72,29 +72,29 @@ unlike($_, qr/^ $RXname $/x, "Bad RXname: $_")
     foreach qw({x} a{x} {x}b @A 9.0% $x);
 
 like($_, qr/^ $RXhex $/x, "Good RXhex: $_")
-    foreach qw(0x0 0XA 0xAf 0x99 0xfedbca987654321 0XDEADBEEF);
+    foreach qw(0x0 0XA 0xAf 0x99 0x0001 0xfedbca987654321 0XDEADBEEF);
 unlike($_, qr/^ $RXhex $/x, "Bad RXhex: $_")
     foreach qw(1 x1 0123 0b1010101 -0x12345);
 
 like($_, qr/^ $RXoct $/x, "Good RXoct: $_")
-    foreach qw(0 01 07 077 0777 00001 010101 01234567);
+    foreach qw(0 01 07 077 0777 0001 010101 01234567);
 unlike($_, qr/^ $RXoct $/x, "Bad RXoct: $_")
     foreach qw(1 08 018 0f 0x777 00009 0b1010101);
 
 like($_, qr/^ $RXuint $/x, "Good RXuint: $_")
-    foreach qw(0 01 1 9 999 00001 987654321);
+    foreach qw(0 1 9 10 999 987654321);
 unlike($_, qr/^ $RXuint $/x, "Bad RXuint: $_")
-    foreach qw(-1 0x1 -9 0xf 1.0 1e3 -0x9 0b1010101);
+    foreach qw(-1 01 0x1 012 -9 0xf 1.0 1e3 -0x9 0b1010101);
 
 like($_, qr/^ $RXint $/x, "Good RXint: $_")
-    foreach qw(0 1 9 -09 999 -90909 00001 010101 123456789);
+    foreach qw(0 1 9 999 -90909 123456789);
 unlike($_, qr/^ $RXint $/x, "Bad RXint: $_")
-    foreach qw(0f 0-1 0x777 1.0 1e30 fedcba 0b1010101);
+    foreach qw(0f 0-1 -09 0x777 1.0 1e30 fedcba 0b1010101);
 
 like($_, qr/^ $RXnum $/x, "Good RXnum: $_")
-    foreach qw(0 01 0.1 .9 -.9 9.0 -1e2 0.1e+1 .1e1 -.1e1 -1.1E-1 3.1415926535);
+    foreach qw(0 0.1 .9 -.9 9.0 -1e2 0.1e+1 .1e1 -.1e1 -1.1E-1 3.1415926535);
 unlike($_, qr/^ $RXnum $/x, "Bad RXnum: $_")
-    foreach qw(0f 0-1 e1 1.e1 1.x -e2 1e3-0 +1 0b1010101);
+    foreach qw(0f 0-1 01 e1 1.e1 1.x -e2 1e3-0 +1 0b1010101);
 
 # All '\' chars must be doubled inside qr()
 like($_, qr/^ $RXdqs $/x, "Good RXdqs: $_")
