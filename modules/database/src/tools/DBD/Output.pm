@@ -149,7 +149,8 @@ sub OutputDB {
 }
 
 sub FlattenDB {
-    my ($out, $db, $vars) = @_;
+    my ($out, $db, $vars, $home) = @_;
+    $home = 'top' unless $home;
     printf $out "# %s\n\n", $db->name;
     my $flattened_content;
     open my $flat, '>', \$flattened_content
@@ -161,12 +162,13 @@ sub FlattenDB {
         die "Database not loaded for $instance"
             unless $exp->database;
         # Get the macros to be passed down
-        my $macros = $exp->instance_vars->{$instance};
-        die "Macros not defined for $instance"
+        my $where = "$home/$instance";
+        my $macros = $exp->instance_vars->{$where};
+        die "Macros not defined for $where"
             unless $macros;
         # Expand the child template instance
         printf $flat "\n# expand(\"%s\", %s)\n", $exp->filename, $instance;
-        FlattenDB($flat, $exp->database, $macros);
+        FlattenDB($flat, $exp->database, $macros, $where);
         printf $flat "# end(%s)\n", $instance;
     }
     close $flat;
@@ -178,8 +180,21 @@ sub FlattenDB {
 }
 
 sub FlattenMacros {
-    my ($db, $vars) = @_;
-    printf "FlattenMacros(%s)\n", $db->name if $debug;
+    my ($db, $macros) = @_;
+    my $undefs = ExpandMacros($db, $macros);
+    my $again = $undefs;
+    while ($again) {
+        # Repeat until all have been expanded or progress has stopped
+        $again = ExpandMacros($db, $macros);
+        ($again, $undefs) = ($again && ($again < $undefs), $again);
+    }
+    return $undefs;
+}
+
+sub ExpandMacros {
+    my ($db, $vars, $home) = @_;
+    $home = 'top' unless $home;
+    printf "ExpandMacros(%s)\n", $home if $debug;
     my $undefs = 0;
     # Go through each child template instance to be expanded
     while (my ($instance, $exp) = each %{$db->expands}) {
@@ -187,34 +202,39 @@ sub FlattenMacros {
             unless $exp->database;
         # Set up the macros to be passed down
         my $macros;
-        if (exists $exp->instance_vars->{$instance}) {
-            $macros = $exp->instance_vars->{$instance};
+        my $where = "$home/$instance";
+        if (exists $exp->instance_vars->{$where}) {
+            $macros = $exp->instance_vars->{$where};
+            print "$where: Macros found:\n" if $debug;
+            $macros->reportMacros($where) if $debug;
         }
         else {
             $macros = EPICS::macLib->new();
-            $exp->instance_vars->{$instance} = $macros;
+            $macros->suppressWarning($vars->{noWarn});
+            $exp->instance_vars->{$where} = $macros;
+            print "$where: No macros yet\n" if $debug;
         }
-        $macros->suppressWarning($vars->{noWarn});
         while (my ($name, $raw) = each %{$exp->macros}) {
             # Expand macros in macro value using the parent's context
             my $value = $vars->expandString($raw);
             $macros->putValue($name, $value);
-            $undefs++ if $value =~ m/ \$ [\(\{] /x;
-            print "  Macro $name = $value\n" if $debug;
+            $undefs++ if $macros->expandString($value) =~ m/ \$ [({] /x;
+            print "  $where: Macro $name := $raw => $value\n" if $debug;
         }
         # Collect the port values from this template instance
         while (my ($name, $raw) = each %{$exp->database->ports}) {
             # Expand macros in the port value using the child's context
             my $value = $macros->expandString($raw);
             $vars->putValue("$instance.$name", $value);
-            $undefs++ if $value =~ m/ \$ [\(\{] /x;
-            print "  Port $instance.$name = $value\n" if $debug;
+            $undefs++ if $macros->expandString($value) =~ m/ \$ [({] /x;
+            print "  $where: Port $instance.$name := $raw => $value\n" if $debug;
         }
         # Recurse into child template instances
-        $undefs += FlattenMacros($exp->database, $macros);
-        $macros->reportMacros if $debug;
+        $undefs += ExpandMacros($exp->database, $macros, $where);
+        print "$where: Macros on exit:\n" if $debug;
+        $macros->reportMacros($where) if $debug;
     }
-    printf "FlattenMacros(%s) returning %d\n", $db->name, $undefs if $debug;
+    printf "ExpandMacros(%s) returning %d\n", $home, $undefs if $debug;
     return $undefs;
 }
 

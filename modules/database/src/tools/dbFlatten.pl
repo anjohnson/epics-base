@@ -109,14 +109,8 @@ foreach my $db (values %databases) {
     }
 }
 
-# Run through the hierarchy setting ports & macros
-my $undefs = FlattenMacros($databases{$top}, $macros);
-my $again = $undefs;
-while ($again) {
-    # Repeat until all have been expanded or progress has stopped
-    $again = FlattenMacros($databases{$top}, $macros);
-    ($again, $undefs) = ($again && ($again < $undefs), $again);
-}
+# Calculate port & macro values
+FlattenMacros($databases{$top}, $macros);
 
 my $out;
 if ($opt_o) {
