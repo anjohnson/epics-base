@@ -11,8 +11,8 @@ our @ISA = qw(DBD::Base);
 use strict;
 
 my %link_types = (
-    CONSTANT  => qr/$RXnum/,
-    PV_LINK   => qr/$RXname \s+ [.NPCAMS ]*/x,
+    CONSTANT  => qr/$RXnum | \[ .* \] /x,
+    PV_LINK   => qr/$RXname (?: \. $RXident)? (?: \s+ [ .ACINMPS]*)?/x,
     JSON_LINK => qr/\{ .* \}/x,
     VME_IO    => qr/\# (?: \s* [CS] \s* $RXintx)* \s* (?: @ .*)?/x,
     CAMAC_IO  => qr/\# (?: \s* [BCNAF] \s* $RXintx)* \s* (?: @ .*)?/x,
