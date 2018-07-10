@@ -47,7 +47,8 @@ sub OutputDBD {
 
 sub OutputMenus {
     my ($out, $menus) = @_;
-    while (my ($name, $menu) = each %{$menus}) {
+    for my $name (sort keys %{$menus}) {
+        my $menu = $menus->{$name};
         printf $out "menu(%s) {\n", $name;
         printf $out "    choice(%s, \"%s\")\n", @{$_}
             foreach $menu->choices;
@@ -57,19 +58,18 @@ sub OutputMenus {
 
 sub OutputRecordtypes {
     my ($out, $recordtypes) = @_;
-    while (my ($name, $recordtype) = each %{$recordtypes}) {
+    for my $name (sort keys %{$recordtypes}) {
+        my $recordtype = $recordtypes->{$name};
         printf $out "recordtype(%s) {\n", $name;
         print $out "    %$_\n"
             foreach $recordtype->cdefs;
-        foreach my $field ($recordtype->fields) {
+        for my $field ($recordtype->fields) {
             printf $out "    field(%s, %s) {\n",
                 $field->name, $field->dbf_type;
-            while (my ($attr, $val) = each %{$field->attributes}) {
-                $val = "\"$val\""
-                    if $val !~ m/^$RXname$/x
-                       || $attr eq 'prompt'
-                       || $attr eq 'initial';
-                printf $out "        %s(%s)\n", $attr, $val;
+            my $attributes = $field->attributes;
+            for my $attr (sort keys %{$attributes}) {
+                my $val = $attributes->{$attr};
+                printf $out "        %s(%s)\n", $attr, qval($val);
             }
             print $out "    }\n";
         }
@@ -83,12 +83,13 @@ sub OutputRecordtypes {
 sub OutputDrivers {
     my ($out, $drivers) = @_;
     printf $out "driver(%s)\n", $_
-        foreach keys %{$drivers};
+        foreach sort keys %{$drivers};
 }
 
 sub OutputLinks {
     my ($out, $links) = @_;
-    while (my ($name, $link) = each %{$links}) {
+    for my $name (sort keys %{$links}) {
+        my $link = $links->{$name};
         printf $out "link(%s, %s)\n", $link->key, $name;
     }
 }
@@ -96,25 +97,27 @@ sub OutputLinks {
 sub OutputRegistrars {
     my ($out, $registrars) = @_;
     printf $out "registrar(%s)\n", $_
-        foreach keys %{$registrars};
+        foreach sort keys %{$registrars};
 }
 
 sub OutputFunctions {
     my ($out, $functions) = @_;
     printf $out "function(%s)\n", $_
-        foreach keys %{$functions};
+        foreach sort keys %{$functions};
 }
 
 sub OutputVariables {
     my ($out, $variables) = @_;
-    while (my ($name, $variable) = each %{$variables}) {
+    for my $name (sort keys %{$variables}) {
+        my $variable = $variables->{$name};
         printf $out "variable(%s, %s)\n", $name, $variable->var_type;
     }
 }
 
 sub OutputBreaktables {
     my ($out, $breaktables) = @_;
-    while (my ($name, $breaktable) = each %{$breaktables}) {
+    for my $name (sort keys %{$breaktables}) {
+        my $breaktable = $breaktables->{$name};
         printf $out "breaktable(\"%s\") {\n", $name;
         printf $out "    %s, %s\n", @{$_}
             foreach $breaktable->points;
@@ -129,7 +132,8 @@ sub OutputDB {
     printf $out "# Expansion of %s\n\n", $db->name;
     if ($db->is_template) {
         printf $out "template(\"%s\") {\n", $db->description;
-        while (my ($name, $value) = each %{$db->ports}) {
+        for my $name (sort keys %{$db->ports}) {
+            my $value = $db->ports->{$name};
             my $desc = $db->port_description($name);
             if ($desc eq '') {
                 printf $out "    port(%s, \"%s\")\n", $name, $value;
@@ -216,12 +220,13 @@ sub FlattenMacros {
 
 sub OutputRecords {
     my ($out, $records) = @_;
-    while (my ($name, $rec) = each %{$records}) {
+    for my $name (sort keys %{$records}) {
+        my $rec = $records->{$name};
         next if $name ne $rec->name; # Alias
         printf $out "record(%s, \"%s\") {\n", $rec->recordtype->name, $name;
         printf $out "    alias(\"%s\")\n", $_
             foreach $rec->aliases;
-        foreach my $recfield ($rec->recfields) {
+        for my $recfield ($rec->recfields) {
             my $field_name = $recfield->name;
             my $value = $rec->get_field($field_name);
             printf $out "    field(%s, %s)\n", $field_name, qval($value)
@@ -246,7 +251,8 @@ sub qval {
 
 sub OutputExpands {
     my ($out, $expands) = @_;
-    while (my ($instance, $exp) = each %{$expands}) {
+    for my $instance (sort keys %{$expands}) {
+        my $exp = $expands->{$instance};
         printf $out "expand(\"%s\", %s) {\n", $exp->filename, $instance;
         printf $out "    macro(%s, \"%s\")\n", $_, $exp->macro($_)
             foreach keys %{$exp->macros};
