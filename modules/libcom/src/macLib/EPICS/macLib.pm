@@ -8,11 +8,11 @@
 
 package EPICS::macLib::entry;
 
-sub new ($$) {
-    my $class = shift;
+sub new {
+    my ($class, $name, $type) = @_;
     my $this = {
-        name => shift,
-        type => shift,
+        name => $name,
+        type => $type,
         raw => '',
         val => '',
         visited => 0,
@@ -22,10 +22,10 @@ sub new ($$) {
     return $this;
 }
 
-sub report ($) {
-    my ($this) = @_;
+sub report {
+    my ($this, $prefix) = @_;
     return unless defined $this->{raw};
-    printf "%1s %-16s %-16s %s\n",
+    printf "$prefix%1s %-16s %-16s %s\n",
         ($this->{error} ? '*' : ' '), $this->{name}, $this->{raw}, $this->{val};
 }
 
@@ -34,7 +34,7 @@ package EPICS::macLib;
 
 use Carp;
 
-sub new ($@) {
+sub new {
     my $proto = shift;
     my $class = ref($proto) || $proto;
     my $this = {
@@ -43,51 +43,44 @@ sub new ($@) {
         macros => [{}], # [0] is current scope, [1] is parent etc.
     };
     bless $this, $class;
-    $this->installList(@_);
+    $this->installMacros(@_);
     return $this;
 }
 
-sub installList ($@) {
-    # Argument is a list of strings which are arguments to installMacros
+sub installMacros {
+    # Arguments are strings of macro definitions: a=1,b="2",c,d='hello'
     my $this = shift;
-    while (@_) {
-        $this->installMacros(shift);
-    }
-}
-
-sub installMacros ($$) {
-    # Argument is a string: a=1,b="2",c,d='hello'
-    my $this = shift;
-    $_ = shift;
-    until (defined pos($_) and pos($_) == length($_)) {
-        m/\G \s* /xgc;    # Skip whitespace
-        if (m/\G ( [A-Za-z0-9_-]+ ) \s* /xgc) {
-            my ($name, $val) = ($1);
-            if (m/\G = \s* /xgc) {
-                # The value follows, handle quotes and escapes
-                until (pos($_) == length($_)) {
-                    if (m/\G , /xgc) { last; }
-                    elsif (m/\G ' ( ( [^'] | \\ ' )* ) ' /xgc) { $val .= $1; }
-                    elsif (m/\G " ( ( [^"] | \\ " )* ) " /xgc) { $val .= $1; }
-                    elsif (m/\G \\ ( . ) /xgc) { $val .= $1; }
-                    elsif (m/\G ( . ) /xgc) { $val .= $1; }
-                    else { die "How did I get here?"; }
+    for (@_) {
+        until (defined pos($_) and pos($_) == length($_)) {
+            m/\G \s* /xgc;    # Skip whitespace
+            if (m/\G ( [A-Za-z0-9_-]+ ) \s* /xgc) {
+                my ($name, $val) = ($1);
+                if (m/\G = \s* /xgc) {
+                    # The value follows, handle quotes and escapes
+                    until (pos($_) == length($_)) {
+                        if (m/\G , /xgc) { last; }
+                        elsif (m/\G ' ( ( [^'] | \\ ' )* ) ' /xgc) { $val .= $1; }
+                        elsif (m/\G " ( ( [^"] | \\ " )* ) " /xgc) { $val .= $1; }
+                        elsif (m/\G \\ ( . ) /xgc) { $val .= $1; }
+                        elsif (m/\G ( . ) /xgc) { $val .= $1; }
+                        else { die "How did I get here?"; }
+                    }
+                    $this->putValue($name, $val);
+                } elsif (m/\G , /xgc or (pos($_) == length($_))) {
+                    $this->putValue($name, undef);
+                } else {
+                    warn "How did I get here?";
                 }
-                $this->putValue($name, $val);
-            } elsif (m/\G , /xgc or (pos($_) == length($_))) {
-                $this->putValue($name, undef);
+            } elsif (m/\G ( .* )/xgc) {
+                croak "Can't find a macro definition in '$1'";
             } else {
-                warn "How did I get here?";
+                last;
             }
-        } elsif (m/\G ( .* )/xgc) {
-            croak "Can't find a macro definition in '$1'";
-        } else {
-            last;
         }
     }
 }
 
-sub putValue ($$$) {
+sub putValue {
     my ($this, $name, $raw) = @_;
     if (exists $this->{macros}[0]{$name}) {
         if (!defined $raw) {
@@ -110,22 +103,22 @@ sub putValues {
     }
 }
 
-sub pushScope ($) {
+sub pushScope {
     my ($this) = @_;
     unshift @{$this->{macros}}, {};
 }
 
-sub popScope ($) {
+sub popScope {
     my ($this) = @_;
     shift @{$this->{macros}};
 }
 
-sub suppressWarning($$) {
+sub suppressWarning {
     my ($this, $suppress) = @_;
     $this->{noWarn} = $suppress;
 }
 
-sub expandString($$) {
+sub expandString {
     my ($this, $src) = @_;
     $this->_expand;
     (my $name = $src) =~ s/^ (.{20}) .* $/$1.../xs;
@@ -135,24 +128,25 @@ sub expandString($$) {
     return $this->{noWarn} ? $result : undef;
 }
 
-sub reportMacros ($) {
-    my ($this) = @_;
+sub reportMacros {
+    my ($this, $prefix) = @_;
+    $prefix = defined $prefix ? "$prefix: " : '';
     $this->_expand;
-    print "Macro report\n============\n";
+    print "${prefix}Macro report\n${prefix}============\n";
     foreach my $scope (@{$this->{macros}}) {
         foreach my $name (keys %{$scope}) {
             my $entry = $scope->{$name};
-            $entry->report;
+            $entry->report($prefix);
         }
     } continue {
-        print " -- scope ends --\n";
+        print "${prefix}-- scope ends --.\n";
     }
 }
 
 
 # Private routines, not intended for public use
 
-sub _expand ($) {
+sub _expand {
     my ($this) = @_;
     return unless $this->{dirty};
     foreach my $scope (@{$this->{macros}}) {
@@ -164,7 +158,7 @@ sub _expand ($) {
     $this->{dirty} = 0;
 }
 
-sub _lookup ($$$$$) {
+sub _lookup {
     my ($this, $name) = @_;
     foreach my $scope (@{$this->{macros}}) {
         if (exists $scope->{$name}) {
@@ -176,12 +170,12 @@ sub _lookup ($$$$$) {
     return undef;
 }
 
-sub _translate ($$$$) {
+sub _translate {
     my ($this, $entry, $level, $str) = @_;
     return $this->_trans($entry, $level, '', \$str);
 }
 
-sub _trans ($$$$$) {
+sub _trans {
     my ($this, $entry, $level, $term, $R) = @_;
     return $$R
         if (!defined $$R or
