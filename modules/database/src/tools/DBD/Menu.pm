@@ -10,6 +10,8 @@ our @ISA = qw(DBD::Base);
 
 use strict;
 
+use Scalar::Util qw(looks_like_number);
+
 sub init {
     my ($this, $name) = @_;
     $this->SUPER::init($name, "menu");
@@ -43,7 +45,9 @@ sub choice {
 
 sub legal_choice {
     my ($this, $value) = @_;
-    return 1 if ($value < scalar($this->{CHOICE_LIST}) || $value == 65535);
+    if (looks_like_number($value)) {
+        return 1 if $value < scalar($this->{CHOICE_LIST}) || $value == 65535;
+    }
     return exists $this->{CHOICE_INDEX}->{$value};
 }
 
