@@ -178,9 +178,11 @@ testSpecialLinks(void)
     testdbPutFieldOk("cout.INPA", DBF_STRING, "10");
     testdbGetFieldEqual("cout.A", DBF_LONG, 10);
     testdbGetFieldEqual("cout.INAV", DBF_LONG, calcoutINAV_CON);
+    testdbPutFieldOk("cout.A", DBF_LONG, 15);
     testdbPutFieldOk("cout.INPB", DBF_STRING, "{\"const\":20}");
     testdbGetFieldEqual("cout.B", DBF_LONG, 20);
     testdbGetFieldEqual("cout.INBV", DBF_LONG, calcoutINAV_CON);
+    testdbPutFieldOk("cout.B", DBF_LONG, 25);
     testdbPutFieldOk("cout.INPC", DBF_STRING, "cout.A");
     testdbGetFieldEqual("cout.C", DBF_LONG, 99);
     testdbGetFieldEqual("cout.INCV", DBF_LONG, calcoutINAV_LOC);
@@ -252,7 +254,7 @@ void testLinkSevr(void)
 
 MAIN(regressTest)
 {
-    testPlan(80);
+    testPlan(82);
     testArrayLength1();
     testHexConstantLinks();
     testLinkMS();
