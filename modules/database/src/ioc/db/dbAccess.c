@@ -1173,6 +1173,9 @@ static long dbPutFieldLink(DBADDR *paddr,
         goto restoreScan;
     }
 
+    /* Tell record type we're about to change this field,
+     * it can prevent that by returning an error status.
+     */
     if (special) status = dbPutSpecial(paddr, 0);
 
     if (!status) status = dbSetLink(plink, &link_info, new_devsup);
@@ -1198,17 +1201,19 @@ static long dbPutFieldLink(DBADDR *paddr,
     switch (plink->type) { /* New type */
     case PV_LINK:
         if (isDevLink)
-            break;
+            break; /* Delay call to dbAddLink() */
         /* else fall through */
     case CONSTANT:
     case JSON_LINK:
         dbAddLink(&locker, plink, pfldDes->field_type, chan);
-        chan = NULL; /* don't clean it up */
+        chan = NULL; /* Link uses chan, don't clean it up */
     }
 
+    /* Tell record type we're done changing the field */
     if (special) status = dbPutSpecial(paddr, 1);
 
     if (!status && isDevLink) {
+        /* We changed the INP/OUT field, tell new device support */
         precord->dpvt = NULL;
         precord->dset = new_dset;
         precord->pact = FALSE;
@@ -1234,8 +1239,13 @@ static long dbPutFieldLink(DBADDR *paddr,
 
     case PV_LINK:
         if (isDevLink) {
+            /* Make the call we delayed above if still appropriate.
+             * Device support has seen the link, so the Async Soft
+             * Channel supports have changed plink->type to PN_LINK
+             * already if necessary, preventing this call.
+             */
             dbAddLink(&locker, plink, pfldDes->field_type, chan);
-            chan = NULL; /* don't clean it up */
+            chan = NULL; /* Link uses chan, don't clean it up */
         }
         break;
 
