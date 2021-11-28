@@ -33,6 +33,7 @@
 #include "epicsThread.h"
 #include "epicsTime.h"
 #include "errlog.h"
+#include "errSymTbl.h"
 #include "errMdef.h"
 
 #include "caeventmask.h"
@@ -1105,8 +1106,10 @@ static long dbPutFieldLink(DBADDR *paddr,
         (link_info.modifiers & (pvlOptCA | pvlOptCP | pvlOptCPP)) == 0) {
         chan = dbChannelCreate(link_info.target);
         if (chan && (status = dbChannelOpen(chan)) != 0) {
-            errlogPrintf(ERL_ERROR ": dbPutFieldLink %s.%s=%s: dbChannelOpen() failed w/ 0x%lx\n",
-                precord->name, pfldDes->name, link_info.target, status);
+            errlogPrintf(ERL_ERROR ": dbPutFieldLink %s.%s=%s: "
+                "dbChannelOpen() failed with %s\n",
+                precord->name, pfldDes->name, link_info.target,
+                errSymMsg(status));
             goto cleanup;
         }
     }
