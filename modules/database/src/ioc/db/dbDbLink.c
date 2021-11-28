@@ -129,14 +129,14 @@ static void dbDbRemoveLink(struct dbLocker *locker, struct link *plink)
     dbChannel *chan = linkChannel(plink);
     dbCommon *precord = dbChannelRecord(chan);
 
+    plink->value.pv_link.pvt = 0;
+    plink->value.pv_link.getCvt = 0;
+    plink->value.pv_link.pvlMask = 0;
+    plink->value.pv_link.lastGetdbrType = 0;
     plink->type = PV_LINK;
 
     /* locker is NULL when an isolated IOC is closing its links */
     if (locker) {
-        plink->value.pv_link.pvt = 0;
-        plink->value.pv_link.getCvt = 0;
-        plink->value.pv_link.pvlMask = 0;
-        plink->value.pv_link.lastGetdbrType = 0;
         ellDelete(&precord->bklnk, &plink->value.pv_link.backlinknode);
         dbLockSetSplit(locker, plink->precord, precord);
     }
