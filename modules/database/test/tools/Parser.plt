@@ -105,7 +105,7 @@ is_deeply [$r->info_names], ['r'], 'Info item found';
 
 ok $dba->is_template, 'Database a defines a template';
 my $p = $dba->ports();
-is_deeply [keys $p], ['VAL'], 'VAL port defined';
+is_deeply [keys %$p], ['VAL'], 'VAL port defined';
 
 open my $ofh, '>', \$otxt
     or die "Internal error, $@";
@@ -137,7 +137,7 @@ ParseDB($dbb, $b_db);
 ok $dbb->is_template, 'Database b defines a template';
 
 my $e = $dbb->expands;
-is_deeply [sort keys $e], ['a1', 'a2'], 'Has template expansions';
+is_deeply [sort keys %$e], ['a1', 'a2'], 'Has template expansions';
 
 my $e1 = $e->{a1};
 is $e1->filename, 'a.db', 'Filename correct';
@@ -171,7 +171,7 @@ ParseDB($dbc, $c_db);
 ok !$dbc->is_template, 'Database c does not define a template';
 
 my $e = $dbc->expands;
-is_deeply [sort keys $e], ['b1', 'b2'], 'Has two template expansions';
+is_deeply [sort keys %$e], ['b1', 'b2'], 'Has two template expansions';
 
 my $e3 = $e->{b1};
 is $e3->filename, 'b.db', 'Filename correct';
