@@ -38,12 +38,86 @@ static const unsigned uSecPerSec = 1000u * mSecPerSec;
 static const unsigned nSecPerSec = 1000u * uSecPerSec;
 static const double precisionEPICS = 1.0 / nSecPerSec;
 
+static void testAdd(epicsUInt32 lhsSec, epicsUInt32 lhsNS,
+                    double rhs,
+                    epicsUInt32 expectSec, epicsUInt32 expectNS)
+{
+    epicsTimeStamp lhs = {lhsSec, lhsNS};
+    epicsTimeStamp expect = {expectSec, expectNS};
+    epicsTimeStamp actual = lhs;
+
+
+    epicsTimeAddSeconds(&actual, rhs);
+    testOk(epicsTimeEqual(&actual, &expect),
+           "testAdd(%u:%u + %.9f -> %u:%u == %u:%u)",
+           unsigned(lhs.secPastEpoch), unsigned(lhs.nsec),
+           rhs,
+           unsigned(actual.secPastEpoch), unsigned(actual.nsec),
+           unsigned(expect.secPastEpoch), unsigned(expect.nsec));
+}
+
+static void testDiff(epicsUInt32 lhsSec, epicsUInt32 lhsNS,
+                     epicsUInt32 rhsSec, epicsUInt32 rhsNS,
+                     double expect)
+{
+    epicsTimeStamp lhs = {lhsSec, lhsNS};
+    epicsTimeStamp rhs = {rhsSec, rhsNS};
+    double actual = epicsTimeDiffInSeconds(&lhs, &rhs);
+    double diff = actual - expect;
+
+    testOk(fabs(diff)<precisionEPICS,
+           "testDiff(%u:%u - %u:%u) -> %.9f ~= %.9f (%g)",
+           unsigned(lhs.secPastEpoch), unsigned(lhs.nsec),
+           unsigned(rhs.secPastEpoch), unsigned(rhs.nsec),
+           actual, expect, diff);
+}
+
 MAIN(epicsTimeTest)
 {
     const int wasteTime = 100000;
     const int nTimes = 10;
 
-    testPlan(17 + nTimes * 19);
+    testPlan(61 + nTimes * 19);
+
+    // sec:ns + double == sec:ns
+    testAdd(0,0, 0.0, 0,0);
+    testAdd(1,1, 0.0, 1,1);
+    testAdd(1,999999999, 0.000000001, 2,0);
+    testAdd(1,1, 2.000000002, 3,3);
+    testAdd(1,0, -1.0, 0,0);
+    testAdd(0,1, -0.000000001, 0,0);
+    testAdd(1,1, -1.000000001, 0,0);
+    testAdd(0xffffffff,0, -1.0, 0xfffffffe,0);
+    testAdd(0x7fffffff,0, 1.0, 0x80000000,0);
+    testAdd(0x7fffffff,999999999, 0.000000001, 0x80000000,0);
+
+    // sec:ns - sec:ns == double
+    testDiff(0,0, 0,0, 0.0);
+
+    testDiff(0,1, 0,1, 0.0);
+    testDiff(1,0, 1,0, 0.0);
+    testDiff(1,1, 1,1, 0.0);
+
+    testDiff(2,0, 1,999999999, 0.000000001);
+    testDiff(1,999999999, 2,0, -0.000000001);
+
+    testDiff(1,0, 0xffffffff,0, 2.0);
+    testDiff(0xffffffff,0, 1,0, -2.0);
+
+    testDiff(1,999999999, 0xffffffff,999999999, 2.0);
+    testDiff(0xffffffff,999999999, 1,999999999, -2.0);
+
+    testDiff(0,999999999, 0xffffffff,0, 1.999999999);  // 0.99999.. - -1.0
+    testDiff(0xffffffff,0, 0,999999999, -1.999999999); // -1.0 - 0.999..
+
+    testDiff(0x80000000,0, 0x7fffffff,0, 1.0);
+    testDiff(0x7fffffff,0, 0x80000000,0, -1.0);
+
+    testDiff(0x80000000,0, 0x7fffffff,999999999, 0.000000001);
+    testDiff(0x7fffffff,999999999, 0x80000000,0, -0.000000001);
+
+    testDiff(0x80000000,999999999, 0x7fffffff,0, 1.999999999);
+    testDiff(0x7fffffff,0, 0x80000000,999999999, -1.999999999);
 
     try {
         const epicsTimeStamp epochTS = {0, 0};
