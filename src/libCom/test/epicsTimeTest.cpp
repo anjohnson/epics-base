@@ -46,7 +46,6 @@ static void testAdd(epicsUInt32 lhsSec, epicsUInt32 lhsNS,
     epicsTimeStamp expect = {expectSec, expectNS};
     epicsTimeStamp actual = lhs;
 
-
     epicsTimeAddSeconds(&actual, rhs);
     testOk(epicsTimeEqual(&actual, &expect),
            "testAdd(%u:%u + %.9f -> %u:%u == %u:%u)",
@@ -87,8 +86,27 @@ MAIN(epicsTimeTest)
     testAdd(1,0, -1.0, 0,0);
     testAdd(0,1, -0.000000001, 0,0);
     testAdd(1,1, -1.000000001, 0,0);
+    testAdd(1,1, -1.0, 0,1);
+    testAdd(1,1, -0.000000001, 1,0);
+
+    testAdd(0,0, 2147483648.0, 0x80000000,0);
+    testAdd(0,125000000, 2147483647.875, 0x80000000,0);
+    testAdd(0,500000000, 2147483647.500, 0x80000000,0);
+    testAdd(0,875000000, 2147483647.125, 0x80000000,0);
+    testAdd(1,0, 2147483647.0, 0x80000000,0);
+    testAdd(1,0, 2147483648.0, 0x80000001,0);
+    testAdd(0x3fffffff,0, 2147483648.0, 0xbfffffff,0);
+    testAdd(0x40000000,0, 2147483648.0, 0xc0000000,0);
+    testAdd(0x7fffffff,0, 2147483648.0, 0xffffffff,0);
+
+    testAdd(0xffffffff,0, -2147483648.0, 0x7fffffff,0);
+    testAdd(0xc0000000,0, -2147483648.0, 0x40000000,0);
+    testAdd(0xbfffffff,0, -2147483648.0, 0x3fffffff,0);
+    testAdd(0x7fffffff,0, -2147483647.0, 0,0);
+
     testAdd(0xffffffff,0, -1.0, 0xfffffffe,0);
     testAdd(0x7fffffff,0, 1.0, 0x80000000,0);
+    testAdd(0x7fffffff,0, 2.0, 0x80000001,0);
     testAdd(0x7fffffff,999999999, 0.000000001, 0x80000000,0);
 
     // sec:ns - sec:ns == double
