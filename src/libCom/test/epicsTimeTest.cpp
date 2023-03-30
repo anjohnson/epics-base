@@ -101,14 +101,14 @@ MAIN(epicsTimeTest)
     testDiff(2,0, 1,999999999, 0.000000001);
     testDiff(1,999999999, 2,0, -0.000000001);
 
-    testDiff(1,0, 0xffffffff,0, 2.0);
-    testDiff(0xffffffff,0, 1,0, -2.0);
+    testDiff(1,0, 0xffffffff,0, -4294967294.0);
+    testDiff(0xffffffff,0, 1,0, 4294967294.0);
 
-    testDiff(1,999999999, 0xffffffff,999999999, 2.0);
-    testDiff(0xffffffff,999999999, 1,999999999, -2.0);
+    testDiff(1,999999999, 0xffffffff,999999999, -4294967294.0);
+    testDiff(0xffffffff,999999999, 1,999999999, 4294967294.0);
 
-    testDiff(0,999999999, 0xffffffff,0, 1.999999999);  // 0.99999.. - -1.0
-    testDiff(0xffffffff,0, 0,999999999, -1.999999999); // -1.0 - 0.999..
+    testDiff(0,999999999, 0xffffffff,0, -4294967293.999999999);
+    testDiff(0xffffffff,0, 0,999999999, 4294967294.000000001);
 
     testDiff(0x80000000,0, 0x7fffffff,0, 1.0);
     testDiff(0x7fffffff,0, 0x80000000,0, -1.0);
