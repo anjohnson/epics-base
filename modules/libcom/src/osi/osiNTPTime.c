@@ -45,11 +45,11 @@ static struct {
     int             syncsFailed;
     epicsMutexId    lock;
     epicsTimeStamp  syncTime;
-    epicsUInt32     syncTick;
+    epicsUInt64     syncMono;
     epicsTimeStamp  clockTime;
-    epicsUInt32     clockTick;
-    epicsUInt32     ticksToSkip;
-    double          tickRate;
+    epicsUInt64     clockMono;
+    epicsUInt64     monoToSkip;
+    double          monoRate;
 } NTPTimePvt;
 
 static epicsThreadOnceId onceId = EPICS_THREAD_ONCE_INIT;
@@ -65,12 +65,12 @@ static void NTPTimeSync(void *dummy);
 static const iocshArg ReportArg0 = { "interest_level", iocshArgArgv};
 static const iocshArg * const ReportArgs[1] = { &ReportArg0 };
 static const iocshFuncDef ReportFuncDef = {"NTPTime_Report", 1, ReportArgs,
-                                           "Display time provider synchronization state\n"
-                                           "  interest_level - with level 1 it also shows:\n"
-                                           "                    * synchronization interval\n"
-                                           "                    * time when last synchronized\n"
-                                           "                    * nominal and measured system tick rates\n"
-                                           "                    * server address (vxWorks only)\n"};
+    "Display time provider synchronization state\n"
+    "    interest_level - level 1 adds:\n"
+    "        synchronization interval\n"
+    "        time when last synchronized\n"
+    "        measured monotonic clock rate and ppm\n"
+    "        OS-specific information\n"};
 static void ReportCallFunc(const iocshArgBuf *args)
 {
     NTPTime_Report(args[0].ival);
@@ -78,7 +78,7 @@ static void ReportCallFunc(const iocshArgBuf *args)
 
 /* NTPTime_Shutdown iocsh command */
 static const iocshFuncDef ShutdownFuncDef = {"NTPTime_Shutdown", 0, NULL,
-                                             "Shuts down NTP time synchronization thread\n"};
+    "Shuts down NTP time synchronization thread\n"};
 static void ShutdownCallFunc(const iocshArgBuf *args)
 {
     NTPTime_Shutdown(NULL);
@@ -102,10 +102,10 @@ static void NTPTime_InitOnce(void *pprio)
 
     /* Try to sync with NTP server */
     if (!osdNTPGet(&timespecNow)) {
-        NTPTimePvt.syncTick = osdTickGet();
+        NTPTimePvt.syncMono = epicsMonotonicGet();
         if (timespecNow.tv_sec > POSIX_TIME_AT_EPICS_EPOCH && epicsTimeOK ==
                 epicsTimeFromTimespec(&NTPTimePvt.syncTime, &timespecNow)) {
-            NTPTimePvt.clockTick = NTPTimePvt.syncTick;
+            NTPTimePvt.clockMono = NTPTimePvt.syncMono;
             NTPTimePvt.clockTime = NTPTimePvt.syncTime;
             NTPTimePvt.synchronized = 1;
         }
@@ -155,12 +155,12 @@ static void NTPTimeSync(void *dummy)
         int             status;
         struct timespec timespecNow;
         epicsTimeStamp  timeNow;
-        epicsUInt32     tickNow;
+        epicsUInt64     monoNow;
         double          diff;
         double          ntpDelta;
 
         status = osdNTPGet(&timespecNow);
-        tickNow = osdTickGet();
+        monoNow = epicsMonotonicGet();
 
         if (status) {
             if (++NTPTimePvt.syncsFailed > NTPTimeSyncRetries &&
@@ -198,17 +198,17 @@ static void NTPTimeSync(void *dummy)
         epicsMutexMustLock(NTPTimePvt.lock);
         diff = epicsTimeDiffInSeconds(&timeNow, &NTPTimePvt.clockTime);
         if (diff >= 0.0) {
-            NTPTimePvt.ticksToSkip = 0;
+            NTPTimePvt.monoToSkip = 0;
         } else { /* don't go back in time */
-            NTPTimePvt.ticksToSkip = -diff * osdTickRateGet();
+            NTPTimePvt.monoToSkip = -diff * NSEC_PER_SEC;
         }
-        NTPTimePvt.clockTick = tickNow;
+        NTPTimePvt.clockMono = monoNow;
         NTPTimePvt.clockTime = timeNow;
         NTPTimePvt.synchronized = 1;
         epicsMutexUnlock(NTPTimePvt.lock);
 
-        NTPTimePvt.tickRate = (tickNow - NTPTimePvt.syncTick) / ntpDelta;
-        NTPTimePvt.syncTick = tickNow;
+        NTPTimePvt.monoRate = (monoNow - NTPTimePvt.syncMono) / ntpDelta;
+        NTPTimePvt.syncMono = monoNow;
         NTPTimePvt.syncTime = timeNow;
     }
 
@@ -221,36 +221,34 @@ static void NTPTimeSync(void *dummy)
 
 static int NTPTimeGetCurrent(epicsTimeStamp *pDest)
 {
-    epicsUInt32 tickNow;
-    epicsUInt32 ticksSince;
+    epicsUInt64 monoNow;
+    epicsUInt64 monoSince;
 
     if (!NTPTimePvt.synchronized)
         return S_time_unsynchronized;
 
     epicsMutexMustLock(NTPTimePvt.lock);
 
-    tickNow = osdTickGet();
-    ticksSince = tickNow - NTPTimePvt.clockTick;
+    monoNow = epicsMonotonicGet();
+    monoSince = monoNow - NTPTimePvt.clockMono;
 
-    if (NTPTimePvt.ticksToSkip <= ticksSince) {
-        if (NTPTimePvt.ticksToSkip) {
-            ticksSince -= NTPTimePvt.ticksToSkip;
-            NTPTimePvt.ticksToSkip = 0;
+    if (NTPTimePvt.monoToSkip <= monoSince) {
+        if (NTPTimePvt.monoToSkip) {
+            monoSince -= NTPTimePvt.monoToSkip;
+            NTPTimePvt.monoToSkip = 0;
         }
 
-        if (ticksSince) {
-            epicsUInt32 ticksPerSecond = osdTickRateGet();
-            epicsUInt32 nsecsPerTick = NSEC_PER_SEC / ticksPerSecond;
-            epicsUInt32 secsSince = ticksSince / ticksPerSecond;
+        if (monoSince) {
+            epicsUInt64 secsSince = monoSince / NSEC_PER_SEC;
 
-            ticksSince -= secsSince * ticksPerSecond;
-            NTPTimePvt.clockTime.nsec += ticksSince * nsecsPerTick;
+            monoSince -= secsSince * NSEC_PER_SEC;
+            NTPTimePvt.clockTime.nsec += monoSince;
             if (NTPTimePvt.clockTime.nsec >= NSEC_PER_SEC) {
                 secsSince++;
                 NTPTimePvt.clockTime.nsec -= NSEC_PER_SEC;
             }
             NTPTimePvt.clockTime.secPastEpoch += secsSince;
-            NTPTimePvt.clockTick = tickNow;
+            NTPTimePvt.clockMono = monoNow;
         }
     }
 
@@ -276,6 +274,8 @@ int NTPTime_Report(int level)
         }
         if (level) {
             char lastSync[32];
+            double monoPpm = (NTPTimePvt.monoRate - NSEC_PER_SEC)
+                / 1000.0; /* NSEC_PER_SEC/1e6 */
 
             epicsTimeToStrftime(lastSync, sizeof(lastSync),
                 "%Y-%m-%d %H:%M:%S.%06f", &NTPTimePvt.syncTime);
@@ -283,10 +283,8 @@ int NTPTime_Report(int level)
                 NTPTimeSyncInterval);
             printf("Last synchronized at %s\n",
                 lastSync);
-            printf("Current OS tick rate = %u Hz\n",
-                osdTickRateGet());
-            printf("Measured tick rate = %.3f Hz\n",
-                NTPTimePvt.tickRate);
+            printf("Measured monotonic clock rate = %.3f MHz, %.1f ppm\n",
+                NTPTimePvt.monoRate / 1e6, monoPpm);
             osdNTPReport();
         }
     } else {
