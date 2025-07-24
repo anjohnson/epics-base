@@ -32,6 +32,7 @@ stdRecords += longoutRecord
 stdRecords += lsiRecord
 stdRecords += lsoRecord
 stdRecords += mbbiRecord
+stdRecords += mbbi30Record
 stdRecords += mbbiDirectRecord
 stdRecords += mbboRecord
 stdRecords += mbboDirectRecord

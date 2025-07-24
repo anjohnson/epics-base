@@ -36,6 +36,7 @@ dbRecStd_SRCS += devLsiSoft.c
 dbRecStd_SRCS += devLsoSoft.c
 dbRecStd_SRCS += devMbbiDirectSoft.c
 dbRecStd_SRCS += devMbbiDirectSoftRaw.c
+dbRecStd_SRCS += devMbbi30Soft.c
 dbRecStd_SRCS += devMbbiSoft.c
 dbRecStd_SRCS += devMbbiSoftRaw.c
 dbRecStd_SRCS += devMbboDirectSoft.c

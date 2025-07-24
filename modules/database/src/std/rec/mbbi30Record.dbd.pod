@@ -1,0 +1,1306 @@
+#*************************************************************************
+# Copyright (c) 2025 UChicago Argonne LLC, as Operator of Argonne
+#     National Laboratory.
+# Copyright (c) 2002 The Regents of the University of California, as
+#     Operator of Los Alamos National Laboratory.
+# EPICS BASE is distributed subject to a Software License Agreement found
+# in file LICENSE that is included with this distribution.
+#*************************************************************************
+
+=title Multi-Bit Binary Input 30 Record (mbbi30)
+
+The multi-bit binary 30 input record is an extended version of the mbbi record
+that presents one state from a range of up to 30 states.
+
+Most device support modules obtain values from hardware and place the value in
+RVAL. For these device support modules record processing uses RVAL to determine
+the current state (VAL is given a value between 0 and 29). Device support
+modules may optionally read a value directly into VAL.
+
+Soft device modules are provided to obtain input via database or channel access
+links or via dbPutField or dbPutLink requests. Two soft device support modules
+are provided: C<<< Soft Channel >>> allows VAL to be an arbitrary unsigned short
+integer. C<<< Raw Soft Channel >>> reads the value into RVAL just like normal
+device support modules.
+
+=recordtype mbbi30
+
+=cut
+
+recordtype(mbbi30) {
+
+=head2 Parameter Fields
+
+The record-specific fields are described below, grouped by functionality.
+
+=head3 Scan Parameters
+
+The multi-bit binary input record has the standard fields for specifying under
+what circumstances it will be processed.
+These fields are listed in L<Scan Fields|dbCommonRecord/Scan Fields>.
+
+=head3 Read and Convert Parameters
+
+The device support routines obtain the record's input from the device or link
+specified in the INP field. For records that obtain their input from devices,
+the INP field must contain the address of the I/O card, and the DTYP field must
+specify the proper device support module. Be aware that the address format
+differs according to the I/O bus used.
+
+Two soft device support modules can be specified in DTYP C<Soft Channel> and
+C<<< Raw Soft Channel >>>.
+
+C<<< Raw Soft Channel >>> reads the value into RVAL,
+upon which the normal conversion process is undergone. C<<< Soft Channel >>>
+reads any unsigned integer directly into VAL. For a soft mbbi30 record, the INP
+field can be a constant, a database, or a channel access link. If INP is a
+constant, then the VAL is initialized to the constant value but can be changed
+at run-time via dbPutField or dbPutLink.
+
+MASK is used by the raw soft channel read routine, and by typical device support
+read routines, to select only the desired bits when reading the hardware
+register.  It is initialized to ((1 E<lt>E<lt> NOBT) - 1) by record
+initialization.  The user can configure the NOBT field, but the device support
+routines may set it, in which case the value given to it by the user is simply
+overridden.   The device support routines may also override MASK or shift it
+left by SHFT bits.   If MASK is non-zero, only the bits specified by MASK will
+appear in RVAL.
+
+Unless the device support routine specifies no conversion, RVAL is used to
+determine VAL as follows:
+
+=over
+
+=item 1.
+
+RVAL is assigned to a temporary variable -- rval = RVAL
+
+=item 2.
+
+rval is shifted right SHFT number of bits.
+
+=item 3.
+
+A match is sought between rval and one of the state value fields, ZRVL-FFVL.
+
+=back
+
+Each of the fields, ZRVL-FFVL, represents one of the possible sixteen states
+(not all sixteen have to be used).
+
+Alternatively, the input value can be read as a string, in which case, a match
+is sought with one of the strings specified in the ZRST-FFST fields. Then RVAL
+is set equal to the corresponding value for that string, and the conversion
+process occurs.
+
+=fields VAL, INP, MASK, NOBT, RVAL, SHFT, VL00, VL01, VL02, VL03, VL04, VL05, VL06, VL07, VL08, VL09, VL10, VL11, VL12, VL13, VL14, VL15, VL16, VL17, VL18, VL19, VL20, VL21, VL22, VL23, VL24, VL25, VL26, VL27, VL28, VL29
+
+=head3 Operator Display Parameters
+
+These parameters are used to present meaningful data to the operator. They
+display the value and other parameters of the mbbi30 record either textually or
+graphically. The ZRST-FFST fields contain strings describing one of the possible
+states of the record. The C<<< get_enum_str >>> and C<<< get_enum_strs >>>
+record routines retrieve these strings for the operator. C<<< Get_enum_str >>>
+gets the string corresponding to the value set in VAL, and C<<< get_enum_strs
+>>> retrieves all the strings.
+
+See L<Fields Common to All Record Types|dbCommonRecord/Operator Display
+Parameters> for more on the record name (NAME) and description (DESC) fields.
+
+
+=fields NAME, DESC, ST00, ST01, ST02, ST03, ST04, ST05, ST06, ST07, ST08, ST09, ST10, ST11, ST12, ST13, ST14, ST15, ST16, ST17, ST18, ST19, ST20, ST21, ST22, ST23, ST24, ST25, ST26, ST27, ST28, ST29
+
+=cut
+
+	include "dbCommon.dbd"
+    %/* Declare Device Support Entry Table */
+    %struct mbbi30Record;
+    %typedef struct mbbi30dset {
+    %    dset common; /* init_record returns: (-1,0) => (failure, success)*/
+    %    long (*read_mbbi30)(struct mbbi30Record *prec); /* (0, 2) => (success, success no convert)*/
+    %} mbbi30dset;
+    %#define HAS_mbbi30dset
+    %
+	field(VAL,DBF_ENUM) {
+		prompt("Current Value")
+		promptgroup("40 - Input")
+		asl(ASL0)
+		pp(TRUE)
+	}
+	field(NOBT,DBF_USHORT) {
+		prompt("Number of Bits")
+		promptgroup("40 - Input")
+		special(SPC_NOMOD)
+		interest(1)
+	}
+	field(INP,DBF_INLINK) {
+		prompt("Input Specification")
+		promptgroup("40 - Input")
+		interest(1)
+	}
+	field(VL00,DBF_ULONG) {
+		prompt("Value 00")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL01,DBF_ULONG) {
+		prompt("Value 01")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL02,DBF_ULONG) {
+		prompt("Value 02")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL03,DBF_ULONG) {
+		prompt("Value 03")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL04,DBF_ULONG) {
+		prompt("Value 04")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL05,DBF_ULONG) {
+		prompt("Value 05")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL06,DBF_ULONG) {
+		prompt("Value 06")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL07,DBF_ULONG) {
+		prompt("Value 07")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL08,DBF_ULONG) {
+		prompt("Value 08")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL09,DBF_ULONG) {
+		prompt("Value 09")
+		promptgroup("41 - Input 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL10,DBF_ULONG) {
+		prompt("Value 10")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL11,DBF_ULONG) {
+		prompt("Value 11")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL12,DBF_ULONG) {
+		prompt("Value 12")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL13,DBF_ULONG) {
+		prompt("Value 13")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL14,DBF_ULONG) {
+		prompt("Value 14")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL15,DBF_ULONG) {
+		prompt("Value 15")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL16,DBF_ULONG) {
+		prompt("Value 16")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL17,DBF_ULONG) {
+		prompt("Value 17")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL18,DBF_ULONG) {
+		prompt("Value 18")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL19,DBF_ULONG) {
+		prompt("Value 19")
+		promptgroup("42 - Input 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL20,DBF_ULONG) {
+		prompt("Value 20")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL21,DBF_ULONG) {
+		prompt("Value 21")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL22,DBF_ULONG) {
+		prompt("Value 22")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL23,DBF_ULONG) {
+		prompt("Value 23")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL24,DBF_ULONG) {
+		prompt("Value 24")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL25,DBF_ULONG) {
+		prompt("Value 25")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL26,DBF_ULONG) {
+		prompt("Value 26")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL27,DBF_ULONG) {
+		prompt("Value 27")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL28,DBF_ULONG) {
+		prompt("Value 28")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(VL29,DBF_ULONG) {
+		prompt("Value 29")
+		promptgroup("43 - Input 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		base(HEX)
+		interest(1)
+	}
+	field(ST00,DBF_STRING) {
+		prompt("String Zero")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST01,DBF_STRING) {
+		prompt("String One")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST02,DBF_STRING) {
+		prompt("String Two")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST03,DBF_STRING) {
+		prompt("String Three")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST04,DBF_STRING) {
+		prompt("String Four")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST05,DBF_STRING) {
+		prompt("String Five")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST06,DBF_STRING) {
+		prompt("String Six")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST07,DBF_STRING) {
+		prompt("String Seven")
+		promptgroup("81 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST08,DBF_STRING) {
+		prompt("String Eight")
+		promptgroup("82 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST09,DBF_STRING) {
+		prompt("String Nine")
+		promptgroup("82 - Display 0-9")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+
+	field(ST10,DBF_STRING) {
+		prompt("String Zero")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST11,DBF_STRING) {
+		prompt("String One")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST12,DBF_STRING) {
+		prompt("String Two")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST13,DBF_STRING) {
+		prompt("String Three")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST14,DBF_STRING) {
+		prompt("String Four")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST15,DBF_STRING) {
+		prompt("String Five")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST16,DBF_STRING) {
+		prompt("String Six")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST17,DBF_STRING) {
+		prompt("String Seven")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST18,DBF_STRING) {
+		prompt("String Eight")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST19,DBF_STRING) {
+		prompt("String Nine")
+		promptgroup("82 - Display 10-19")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+
+	field(ST20,DBF_STRING) {
+		prompt("String Zero")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST21,DBF_STRING) {
+		prompt("String One")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST22,DBF_STRING) {
+		prompt("String Two")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST23,DBF_STRING) {
+		prompt("String Three")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST24,DBF_STRING) {
+		prompt("String Four")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST25,DBF_STRING) {
+		prompt("String Five")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST26,DBF_STRING) {
+		prompt("String Six")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST27,DBF_STRING) {
+		prompt("String Seven")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST28,DBF_STRING) {
+		prompt("String Eight")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+	field(ST29,DBF_STRING) {
+		prompt("String Nine")
+		promptgroup("83 - Display 20-29")
+		special(SPC_MOD)
+		pp(TRUE)
+		interest(1)
+		size(26)
+		prop(YES)
+	}
+
+=head3 Alarm Parameters
+
+The possible alarm conditions for multi-bit binary inputs are the SCAN, READ,
+and state alarms. The state alarms are configured in the below severity fields.
+These fields have the usual possible values for severity fields: NO_ALARM,
+MINOR, and MAJOR.
+
+The AFTC field sets the time constant on a low-pass filter that delays the
+reporting of limit alarms until the signal has been within the alarm range for
+that number of seconds (the default AFTC value of zero retains the previous
+behavior).
+
+The unknown state severity (UNSV) field, if set to MINOR or MAJOR, triggers an
+alarm when the record support routine cannot find a matching value in the state
+value fields for C<<< rval >>>.
+
+The change of state severity (COSV) field triggers an alarm when any change of
+state occurs, if set to MAJOR or MINOR.
+
+The other fields, when set to MAJOR or MINOR, trigger an alarm when VAL equals
+the corresponding state.
+
+See L<Alarm Specification|https://docs.epics-controls.org/en/latest/process-database/EPICS_Process_Database_Concepts.html#alarm-specification>
+for a complete explanation of record alarms and of the standard fields.
+L<Alarm Fields|dbCommonRecord/Alarm Fields> lists other fields related
+to alarms that are common to all record types.
+
+=fields UNSV, COSV, SV00, SV01, SV02, SV03, SV04, SV05, SV06, SV07, SV08, SV09, SV10, SV11, SV12, SV13, SV14, SV15, SV16, SV17, SV18, SV19, SV20, SV21, SV22, SV23, SV24, SV25, SV26, SV27, SV28, SV29, AFTC
+
+=cut
+
+	field(SV00,DBF_MENU) {
+		prompt("Severity 00")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV01,DBF_MENU) {
+		prompt("Severity 01")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV02,DBF_MENU) {
+		prompt("Severity 02")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV03,DBF_MENU) {
+		prompt("Severity 03")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV04,DBF_MENU) {
+		prompt("Severity 04")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV05,DBF_MENU) {
+		prompt("Severity 05")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV06,DBF_MENU) {
+		prompt("Severity 06")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV07,DBF_MENU) {
+		prompt("Severity 07")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV08,DBF_MENU) {
+		prompt("Severity 08")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV09,DBF_MENU) {
+		prompt("Severity 09")
+		promptgroup("71 - Alarm 0-9")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+
+	field(SV10,DBF_MENU) {
+		prompt("Severity 10")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV11,DBF_MENU) {
+		prompt("Severity 11")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV12,DBF_MENU) {
+		prompt("Severity 12")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV13,DBF_MENU) {
+		prompt("Severity 13")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV14,DBF_MENU) {
+		prompt("Severity 14")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV15,DBF_MENU) {
+		prompt("Severity 15")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV16,DBF_MENU) {
+		prompt("Severity 16")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV17,DBF_MENU) {
+		prompt("Severity 17")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV18,DBF_MENU) {
+		prompt("Severity 18")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV19,DBF_MENU) {
+		prompt("Severity 19")
+		promptgroup("72 - Alarm 10-19")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+
+	field(SV20,DBF_MENU) {
+		prompt("Severity 20")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV21,DBF_MENU) {
+		prompt("Severity 21")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV22,DBF_MENU) {
+		prompt("Severity 22")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV23,DBF_MENU) {
+		prompt("Severity 23")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV24,DBF_MENU) {
+		prompt("Severity 24")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV25,DBF_MENU) {
+		prompt("Severity 25")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV26,DBF_MENU) {
+		prompt("Severity 26")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV27,DBF_MENU) {
+		prompt("Severity 27")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV28,DBF_MENU) {
+		prompt("Severity 28")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(SV29,DBF_MENU) {
+		prompt("Severity 29")
+		promptgroup("73 - Alarm 20-29")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+
+	field(AFTC, DBF_DOUBLE) {
+		prompt("Alarm Filter Time Constant")
+		promptgroup("70 - Alarm")
+		interest(1)
+	}
+	field(AFVL, DBF_DOUBLE) {
+		prompt("Alarm Filter Value")
+		special(SPC_NOMOD)
+		interest(3)
+	}
+	field(UNSV,DBF_MENU) {
+		prompt("Unknown State Severity")
+		promptgroup("70 - Alarm")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+	field(COSV,DBF_MENU) {
+		prompt("Change of State Svr")
+		promptgroup("70 - Alarm")
+		pp(TRUE)
+		interest(1)
+		menu(menuAlarmSevr)
+	}
+
+=head3 Run-time Parameters
+
+These parameters are used by the run-time code for processing the multi-bit
+binary input.
+
+ORAW is used by record processing to hold the prior RVAL for use in determining
+when to post a monitor event for the RVAL field.
+
+The LALM field implements the change of state alarm severity by holding the
+value of VAL when the previous change of state alarm was issued.
+
+MLST holds the value when the last monitor for value change was triggered.
+
+SDEF is used by record support to save time if no states are defined.
+
+=fields ORAW, LALM, MLST, SDEF
+
+=cut
+
+	field(RVAL,DBF_ULONG) {
+		prompt("Raw Value")
+		pp(TRUE)
+	}
+	field(ORAW,DBF_ULONG) {
+		prompt("Prev Raw Value")
+		special(SPC_NOMOD)
+		interest(3)
+	}
+	field(MASK,DBF_ULONG) {
+		prompt("Hardware Mask")
+		special(SPC_NOMOD)
+		interest(1)
+	}
+	field(MLST,DBF_USHORT) {
+		prompt("Last Value Monitored")
+		special(SPC_NOMOD)
+		interest(3)
+	}
+	field(LALM,DBF_USHORT) {
+		prompt("Last Value Alarmed")
+		special(SPC_NOMOD)
+		interest(3)
+	}
+	field(SDEF,DBF_SHORT) {
+		prompt("States Defined")
+		special(SPC_NOMOD)
+		interest(3)
+	}
+	field(SHFT,DBF_USHORT) {
+		prompt("Shift")
+		promptgroup("40 - Input")
+		interest(1)
+	}
+
+=head3 Simulation Mode Parameters
+
+The following fields are used to operate the record in simulation mode.
+
+If SIMM (fetched through SIML) is YES or RAW, the record is put in SIMS
+severity and the value is fetched through SIOL (buffered in SVAL).
+If SIMM is YES, SVAL is written to VAL without conversion,
+if SIMM is RAW, SVAL is trancated to RVAL and converted.
+SSCN sets a different SCAN mechanism to use in simulation mode.
+SDLY sets a delay (in sec) that is used for asynchronous simulation
+processing.
+
+See L<Input Simulation Fields|dbCommonInput/Input Simulation Fields>
+for more information on simulation mode and its fields.
+
+=fields SIML, SIMM, SIOL, SVAL, SIMS, SDLY, SSCN
+
+=cut
+
+        field(SIOL,DBF_INLINK) {
+		prompt("Simulation Input Link")
+		promptgroup("90 - Simulate")
+		interest(1)
+	}
+	field(SVAL,DBF_ULONG) {
+		prompt("Simulation Value")
+	}
+	field(SIML,DBF_INLINK) {
+		prompt("Simulation Mode Link")
+		promptgroup("90 - Simulate")
+		interest(1)
+	}
+	field(SIMM,DBF_MENU) {
+		prompt("Simulation Mode")
+		special(SPC_MOD)
+		interest(1)
+		menu(menuSimm)
+	}
+	field(SIMS,DBF_MENU) {
+		prompt("Simulation Mode Severity")
+		promptgroup("90 - Simulate")
+		interest(2)
+		menu(menuAlarmSevr)
+	}
+    field(OLDSIMM,DBF_MENU) {
+        prompt("Prev. Simulation Mode")
+        special(SPC_NOMOD)
+        interest(4)
+        menu(menuSimm)
+    }
+    field(SSCN,DBF_MENU) {
+        prompt("Sim. Mode Scan")
+        promptgroup("90 - Simulate")
+        interest(1)
+        menu(menuScan)
+        initial("65535")
+    }
+    field(SDLY,DBF_DOUBLE) {
+        prompt("Sim. Mode Async Delay")
+        promptgroup("90 - Simulate")
+        interest(2)
+        initial("-1.0")
+    }
+    %#include "callback.h"
+    field(SIMPVT,DBF_NOACCESS) {
+        prompt("Sim. Mode Private")
+        special(SPC_NOMOD)
+        interest(4)
+        extra("epicsCallback            *simpvt")
+    }
+
+=head2 Record Support
+
+=head3 Record Support Routines
+
+=head4 init_record
+
+This routine initializes SIMM with the value of SIML if SIML type is CONSTANT
+link or creates a channel access link if SIML type is PV_LINK. SVAL is likewise
+initialized if SIOL is CONSTANT or PV_LINK.
+
+This routine next checks to see that device support is available and a device
+support read routine is defined. If either does not exist, an error message is
+issued and processing is terminated.
+
+Clears MASK and then sets the NOBT low order bits.
+
+If device support includes C<init_record()>, it is called.
+
+init_common is then called to determine if any states are defined. If states are
+defined, SDEF is set to TRUE.
+
+=head4 process
+
+See next section.
+
+=head4 special
+
+Calls init_common to compute SDEF when any of the fields ZRVL, ... FFVL change
+value.
+
+=head4 get_enum_str
+
+Retrieves ASCII string corresponding to VAL.
+
+=head4 get_enum_strs
+
+Retrieves ASCII strings for ZRST,...FFST.
+
+=head4 put_enum_str
+
+Checks if string matches ZRST,...FFST and if it does, sets VAL.
+
+=head3 Record Processing
+
+Routine process implements the following algorithm:
+
+=over
+
+=item 1.
+
+Check to see that the appropriate device support module exists. If it doesn't,
+an error message is issued and processing is terminated with the PACT field
+still set to TRUE. This ensures that processes will no longer be called for this
+record. Thus error storms will not occur.
+
+=item 2.
+
+readValue is called. See L<Input Records> for more information.
+
+=item 3.
+
+If PACT has been changed to TRUE, the device support read routine has started
+but has not completed reading a new input value. In this case, the processing
+routine merely returns, leaving PACT TRUE.
+
+=item 4.
+
+Convert:
+
+=over
+
+=item * status=read_mbbi30
+
+=item * PACT = TRUE
+
+=item * C<recGblGetTimeStamp()> is called.
+
+=item * If status is 0, then determine VAL
+
+=over
+
+=item * Set rval = RVAL
+
+=item * Shift rval right SHFT bits
+
+=back
+
+=item * If at least one state value is defined
+
+=over
+
+=item * Set UDF to TRUE
+
+=back
+
+=item * If RVAL is ZRVL,...,FFVL then set
+
+=over
+
+=item * VAL equals index of state
+
+=item * UDF set to FALSE
+
+=back
+
+=item * Else set VAL = undefined
+
+=over
+
+=item * Else set VAL = RVAL
+
+=back
+
+=item * Set UDF to FALSE
+
+=over
+
+=item * If status is 1, return 0
+
+=item * If status is 2, set status = 0
+
+=back
+
+=back
+
+=item 5.
+
+Check alarms. This routine checks to see if the new VAL causes the alarm status
+and severity to change. If so, NSEV, NSTA and LALM are set.
+
+=item 6.
+
+Check to see if monitors should be invoked.
+
+=over
+
+=item * Alarm monitors are invoked if the alarm status or severity has changed.
+
+=item * Archive and value change monitors are invoked if MLST is not equal to VAL.
+
+=item * Monitors for RVAL are checked whenever other monitors are invoked.
+
+=item * NSEV and NSTA are reset to 0.
+
+=back
+
+=item 7.
+
+Scan forward link if necessary, set PACT FALSE, and return.
+
+=back
+
+=head2 Device Support
+
+=head3 Fields Of Interest To Device Support
+
+Each input record must have an associated set of device support routines.
+
+The primary responsibility of the device support routines is to obtain a new raw
+input value whenever read_mbbi30 is called. The device support routines are
+primarily interested in the following fields:
+
+=fields PACT, DPVT, UDF, NSEV, NSTA, NOBT, VAL, INP, RVAL, MASK, SHFT
+
+=head3 Device Support Routines
+
+Device support consists of the following routines:
+
+=head4 long report(int level)
+
+This optional routine is called by the IOC command C<dbior> and is passed the
+report level that was requested by the user.
+It should print a report on the state of the device support to stdout.
+The C<level> parameter may be used to output increasingly more detailed
+information at higher levels, or to select different types of information with
+different levels.
+Level zero should print no more than a small summary.
+
+=head4 long init(int after)
+
+This optional routine is called twice at IOC initialization time.
+The first call happens before any of the C<init_record()> calls are made, with
+the integer parameter C<after> set to 0.
+The second call happens after all of the C<init_record()> calls have been made,
+with C<after> set to 1.
+
+=head4 init_record
+
+  init_record(precord)
+
+This routine is optional. If provided, it is called by the record support
+C<init_record()> routine. If it uses MASK, it should shift it as necessary and
+also give SHFT a value.
+
+=head4 get_ioint_info
+
+  get_ioint_info(int cmd,struct dbCommon *precord,IOSCANPVT *ppvt)
+
+This routine is called by the ioEventScan system each time the record is added
+or deleted from an I/O event scan list. C<cmd> has the value (0,1) if the record is
+being (added to, deleted from) an I/O event list. It must be provided for any
+device type that can use the I/O Event scanner.
+
+=head4 read_mbbi30
+
+  read_mbbi30(precord)
+
+This routine must provide a new input value. It returns the following values:
+
+=over
+
+=item *
+
+0: Success. A new raw value is placed in RVAL. The record support module
+determines VAL from RVAL, SHFT, and ZEVL ... FFVL.
+
+=item *
+
+2: Success, but don't modify VAL.
+
+=item *
+
+Other: Error.
+
+=back
+
+=head3 Device Support For Soft Records
+
+Two soft device support modules C<<< Soft Channel >>> and C<<< Raw Soft Channel
+>>> are provided for multi-bit binary input records not related to actual
+hardware devices. The INP link type must be either CONSTANT, DB_LINK, or
+CA_LINK.
+
+=head4 Soft Channel
+
+read_mbbi30 always returns a value of 2, which means that no conversion is
+performed.
+
+If the INP link type is constant, then the constant value is stored into VAL by
+C<init_record()>, and UDF is set to FALSE. VAL can be changed via dbPut
+requests. If the INP link type is PV_LINK, then dbCaAddInlink is called by
+C<init_record()>.
+
+read_mbbi30 calls recGblGetLinkValue to read the current value of VAL. See L<Soft
+Input>.
+
+If the return status of recGblGetLinkValue is zero, then read_mbbi30 sets UDF to
+FALSE. The status of recGblGetLinkValue is returned.
+
+=head4 Raw Soft Channel
+
+This module is like the previous except that values are read into RVAL, VAL is
+computed from RVAL, and read_mbbi30 returns a value of 0. Thus the record
+processing routine will determine VAL in the normal way.
+
+=cut
+
+}
