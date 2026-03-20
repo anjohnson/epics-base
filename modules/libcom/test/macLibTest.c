@@ -22,6 +22,154 @@
 
 MAC_HANDLE *h;
 
+/* Callback helpers for testMacIterateMacros */
+static long countCallback(void *user, const char *name, const char *value)
+{
+    (*(int*)user)++;
+    return 0;
+}
+
+static char iterLastName[64];
+static char iterLastValue[64];
+
+static long captureLastCallback(void *user, const char *name, const char *value)
+{
+    (*(int*)user)++;
+    strncpy(iterLastName,  name,  sizeof(iterLastName)-1);
+    iterLastName[sizeof(iterLastName)-1]   = '\0';
+    strncpy(iterLastValue, value, sizeof(iterLastValue)-1);
+    iterLastValue[sizeof(iterLastValue)-1] = '\0';
+    return 0;
+}
+
+static long earlyStopCallback(void *user, const char *name, const char *value)
+{
+    (*(int*)user)++;
+    return 1; /* stop after first */
+}
+
+static void testMacIterateMacros(void)
+{
+    MAC_HANDLE *lh;
+    MAC_HANDLE  badHandle;
+    int n;
+    long ret;
+
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for iterate tests");
+    macSuppressWarning(lh, TRUE);
+
+    /* NULL handle */
+    n = 0;
+    testOk(macIterateMacros(NULL, countCallback, &n) == -1,
+           "NULL handle: returns -1");
+
+    /* Invalid magic */
+    badHandle = *lh;
+    badHandle.magic = 0;
+    testOk(macIterateMacros(&badHandle, countCallback, &n) == -1,
+           "invalid magic: returns -1");
+
+    /* Empty handle */
+    n = 0;
+    ret = macIterateMacros(lh, countCallback, &n);
+    testOk(n == 0 && ret == 0, "empty handle: count 0, returns 0");
+
+    /* One macro */
+    macPutValue(lh, "A", "hello");
+    n = 0;
+    macIterateMacros(lh, captureLastCallback, &n);
+    testOk(n == 1, "one macro: count == 1");
+    testOk(strcmp(iterLastName, "A") == 0 && strcmp(iterLastValue, "hello") == 0,
+           "one macro: name==\"A\", value==\"hello\"");
+
+    /* Two macros */
+    macPutValue(lh, "B", "world");
+    n = 0;
+    macIterateMacros(lh, countCallback, &n);
+    testOk(n == 2, "two macros: count == 2");
+
+    /* Re-create handle for scope tests */
+    macDeleteHandle(lh);
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for scope tests");
+    macSuppressWarning(lh, TRUE);
+
+    /* pushScope alone: scope marker skipped */
+    macPushScope(lh);
+    n = 0;
+    macIterateMacros(lh, countCallback, &n);
+    testOk(n == 0, "pushScope only: scope marker skipped, count == 0");
+
+    /* pushScope + two macros */
+    macPutValue(lh, "C", "val1");
+    macPutValue(lh, "D", "val2");
+    n = 0;
+    macIterateMacros(lh, countCallback, &n);
+    testOk(n == 2, "pushScope + 2 macros: count == 2");
+
+    /* Same name at two scope levels */
+    macDeleteHandle(lh);
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for shadow tests");
+    macSuppressWarning(lh, TRUE);
+    macPutValue(lh, "A", "outer");
+    macPushScope(lh);
+    macPutValue(lh, "A", "inner");
+    n = 0;
+    macIterateMacros(lh, captureLastCallback, &n);
+    testOk(n == 1, "shadowed macro: count == 1");
+    testOk(strcmp(iterLastValue, "inner") == 0,
+           "shadowed macro: inner value reported");
+
+    /* Early stop */
+    macDeleteHandle(lh);
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for early stop tests");
+    macSuppressWarning(lh, TRUE);
+    macPutValue(lh, "P", "1");
+    macPutValue(lh, "Q", "2");
+    macPutValue(lh, "R", "3");
+    n = 0;
+    macIterateMacros(lh, earlyStopCallback, &n);
+    testOk(n == 1, "early stop: count == 1");
+
+    /* visited flag reset: iterate twice on the same handle */
+    n = 0;
+    macIterateMacros(lh, countCallback, &n);
+    testOk(n == 3, "visited reset: 1st iterate count == 3");
+    n = 0;
+    macIterateMacros(lh, countCallback, &n);
+    testOk(n == 3, "visited reset: 2nd iterate count == 3");
+
+    /* Expanded value */
+    macDeleteHandle(lh);
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for expand tests");
+    macSuppressWarning(lh, TRUE);
+    macPutValue(lh, "X", "hello");
+    macPutValue(lh, "Y", "$(X) world");
+    n = 0;
+    iterLastValue[0] = '\0';
+    macIterateMacros(lh, captureLastCallback, &n);
+    testOk(strcmp(iterLastValue, "hello world") == 0,
+           "expanded value: Y == \"hello world\"");
+
+    /* Expansion failure: rawval reported, not empty */
+    macDeleteHandle(lh);
+    if (macCreateHandle(&lh, NULL))
+        testAbort("macCreateHandle() failed for error tests");
+    macSuppressWarning(lh, TRUE);
+    macPutValue(lh, "Z", "$(UNDEF)");
+    n = 0;
+    iterLastValue[0] = '\0';
+    macIterateMacros(lh, captureLastCallback, &n);
+    testOk(n == 1 && iterLastValue[0] != '\0',
+           "expansion failure: rawval reported (non-empty)");
+
+    macDeleteHandle(lh);
+}
+
 static void check(const char *str, const char *expect)
 {
     char output[MAC_SIZE] = {'\0'};
@@ -66,7 +214,7 @@ static void ovcheck(void)
 
 MAIN(macLibTest)
 {
-    testPlan(93);
+    testPlan(108);
 
     if (macCreateHandle(&h, NULL))
         testAbort("macCreateHandle() failed");
@@ -221,6 +369,8 @@ MAIN(macLibTest)
     check("${FOO}", "!$(BAR)");
 
     ovcheck();
+
+    testMacIterateMacros();
 
     return testDone();
 }

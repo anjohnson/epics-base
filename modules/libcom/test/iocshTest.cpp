@@ -199,7 +199,7 @@ void testHelp(void)
 
 MAIN(iocshTest)
 {
-    testPlan(29);
+    testPlan(41);
     libComRegister();
     iocshRegister(&positionFuncDef, &positionCallFunc);
     iocshRegister(&assertFuncDef, &assertCallFunc);
@@ -251,6 +251,30 @@ MAIN(iocshTest)
     testOk1(getenv("innerB") && strcmp(getenv("innerB"), "B inner")==0);
     testOk1(getenv("outerB") && strcmp(getenv("outerB"), "B outer")==0);
     reached.clear();
+
+    // set creates a local macro; env var must remain unset
+    testFile("iocshTestSet.cmd");
+    testOk1(getenv("LOCAL_ONLY") == NULL);
+    testOk1(getenv("captured_set") && strcmp(getenv("captured_set"), "my_value") == 0);
+
+    // epicsEnvSet clears the local macro so the env var value is visible
+    testFile("iocshTestEnvClear.cmd");
+    testOk1(getenv("captured_clash") && strcmp(getenv("captured_clash"), "env_val") == 0);
+
+    // IOCSH_STARTUP_SCRIPT is set as a local macro inside iocshBody()
+    testFile("iocshTestStartupScript.cmd");
+    {
+        const char *s = getenv("captured_script");
+        testOk1(s && strstr(s, "iocshTestStartupScript.cmd") != NULL);
+    }
+
+    // show command: exercises iterating local variables without crashing
+    testCmd("show");
+    testCmd("set X xval");
+    testCmd("show");
+    // set with no value: deletes the variable
+    testCmd("set X");
+    testCmd("show");
 
     // cleanup after macLib to avoid valgrind false positives
     dbmfFreeChunks();
