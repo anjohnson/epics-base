@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 UChicago Argonne LLC, as Operator of Argonne
+#     National Laboratory.
+#
+# SPDX-License-Identifier: EPICS
+
+# Records for the Perl CA client binding tests. All are soft output or
+# waveform records so a CA client can both read and write their values.
+# Load with a P=<prefix> macro to give every PV a unique name.
+
+record(ao, "$(P):dbl") {
+    field(DESC, "DBF_DOUBLE test record")
+    field(EGU,  "V")
+    field(PREC, "3")
+    field(HOPR, "10")
+    field(LOPR, "-10")
+    field(DRVH, "100")
+    field(DRVL, "-100")
+    field(HIHI, "8")
+    field(HIGH, "6")
+    field(LOW,  "-6")
+    field(LOLO, "-8")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+}
+
+record(longout, "$(P):long") {
+    field(DESC, "DBF_LONG test record")
+    field(EGU,  "counts")
+    field(HOPR, "1000")
+    field(LOPR, "0")
+    field(DRVH, "10000")
+    field(DRVL, "-10000")
+}
+
+record(stringout, "$(P):str") {
+    field(DESC, "DBF_STRING test record")
+}
+
+record(mbbo, "$(P):enum") {
+    field(DESC, "DBF_ENUM test record")
+    field(ZRVL, "0")   field(ZRST, "zero")
+    field(ONVL, "1")   field(ONST, "one")
+    field(TWVL, "2")   field(TWST, "two")
+    field(THVL, "3")   field(THST, "three")
+}
+
+record(bo, "$(P):bool") {
+    field(DESC, "Two-state DBF_ENUM test record")
+    field(ZNAM, "Off")
+    field(ONAM, "On")
+}
+
+record(waveform, "$(P):wf") {
+    field(DESC, "DBF_DOUBLE array")
+    field(FTVL, "DOUBLE")
+    field(NELM, "10")
+}
+
+record(waveform, "$(P):wfl") {
+    field(DESC, "DBF_LONG array")
+    field(FTVL, "LONG")
+    field(NELM, "10")
+}
+
+record(waveform, "$(P):wfc") {
+    field(DESC, "DBF_CHAR array / long string")
+    field(FTVL, "CHAR")
+    field(NELM, "40")
+}
+
+record(waveform, "$(P):wfs") {
+    field(DESC, "DBF_STRING array")
+    field(FTVL, "STRING")
+    field(NELM, "5")
+}

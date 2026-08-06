@@ -58,6 +58,16 @@ ifeq ($(findstring $(OS_CLASS),WIN32 cygwin32),) # Doesn't build on WIN32
 
   HTMLS_DIR = .
   HTMLS = CA.html
+
+  # Perl CA client tests, run against a softIoc CA server.
+  # Skipped under CI as these live-network tests hang too often there.
+  ifndef CI
+    TESTS += caChannel
+    TESTS += caCallback
+    TESTS += caData
+    TESTS += caReconnect
+    TESTSCRIPTS_HOST += $(TESTS:%=%.t)
+  endif
 endif
 endif
 endif
