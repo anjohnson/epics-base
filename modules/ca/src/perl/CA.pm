@@ -325,7 +325,7 @@ existing handler is removed, otherwise the new subroutine will be used for all
 future connection events on this channel.
 
 
-=item change_access_rights_event( I<SUB> )
+=item replace_access_rights_event( I<SUB> )
 
 This method replaces, adds or cancels an access rights handler subroutine for
 the channel, which will be called if the client's right to read from or write

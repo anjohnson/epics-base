@@ -434,8 +434,7 @@ This method can also be used to load a database definition (.dbd) file.
 sub dbLoadRecords {
     my ($self, $file, $macros) = @_;
 
-    $macros = '' unless defined $macros;
-    $self->cmd('dbLoadRecords', $file, $macros);
+    $self->cmd('dbLoadRecords', $file, $macros // '');
 }
 
 =item iocInit ()
@@ -459,7 +458,7 @@ records of that type.
 sub dbl {
     my ($self, $rtyp) = @_;
 
-    return $self->cmd('dbl', $rtyp)
+    return $self->cmd('dbl', $rtyp // '')
 }
 
 =item dbgf ( PV )

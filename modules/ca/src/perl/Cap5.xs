@@ -113,7 +113,10 @@ const char * get_error_msg(int status) {
         "ECA_UNRESPTMO - Virtual circuit unresponsive"
     };
 
-    return messages[CA_EXTRACT_MSG_NO(status)];
+    int msgNo = CA_EXTRACT_MSG_NO(status);
+    if (msgNo < sizeof(messages) / sizeof(messages[0]))
+        return messages[msgNo];
+    return "CAP5_BADSTATUS - Error status not recognized";
 }
 
 
@@ -140,7 +143,7 @@ chtype best_type(CA_channel *pch) {
 
 
 static
-SV * newSVdbf(chtype type, const void *dbr, int index) {
+SV * newSVdbf(chtype type, const void *dbr, unsigned long index) {
     switch (type) {
         char *pc;
         size_t len;
@@ -162,7 +165,7 @@ SV * newSVdbf(chtype type, const void *dbr, int index) {
 static
 SV * newSValarm(int sevr) {
     SV *alarm = &PL_sv_undef;
-    if (sevr) {
+    if (sevr > 0 && sevr < ALARM_NSEV) {
         alarm = newSViv(sevr);
         sv_setpv(alarm, epicsAlarmSeverityStrings[sevr]);
         SvIOK_on(alarm);
@@ -208,16 +211,14 @@ SV * newSVdbr(struct event_handler_args *peha) {
     if (is_primitive) {
         if (value_type == DBR_CHAR) {
             /* Long string => Perl scalar */
-            if (peha->count == 0)
-                return newSVpvn(peha->dbr, 0);
-            ((char *)peha->dbr) [peha->count - 1] = 0;
-            return newSVpv(peha->dbr, 0);
+            return newSVpvn(peha->dbr, 
+                strnlen(peha->dbr, peha->count));
         }
 
         if (peha->count != 1) {
             /* Array of values => Perl array reference */
             AV *array;
-            int i;
+            unsigned long i;
 
             array = newAV();
             for (i = 0; i < peha->count; i++) {
@@ -240,7 +241,7 @@ SV * newSVdbr(struct event_handler_args *peha) {
     hashAdd(hash, "COUNT", 5, newSViv(peha->count));
 
     /* Alarm status and severity are always in the same place */
-    if (u->slngval.status)
+    if (u->slngval.status > 0 && u->slngval.status < ALARM_NSTATUS)
         val = newSVpv(epicsAlarmConditionStrings[u->slngval.status], 0);
     else
         val = &PL_sv_undef;
@@ -280,12 +281,7 @@ SV * newSVdbr(struct event_handler_args *peha) {
         char *str = dbr_value_ptr(peha->dbr, peha->type);
 
         /* Long string => Perl scalar */
-        if (peha->count == 0)
-            val = newSVpvn(str, 0);
-        else {
-            str[peha->count - 1] = 0;
-            val = newSVpv(str, 0);
-        }
+        val = newSVpvn(str, strnlen(str, peha->count));
     } else if (peha->count == 1) {
         /* Single value => Perl scalar */
         val = newSVdbf(value_type,
@@ -293,7 +289,7 @@ SV * newSVdbr(struct event_handler_args *peha) {
     } else {
         /* Array of values => Perl array reference */
         AV *array = newAV();
-        int i;
+        unsigned long i;
 
         for (i = 0; i < peha->count; i++) {
             av_push(array, newSVdbf(value_type,
@@ -367,6 +363,8 @@ enum io_type {
     IO_MONITOR,
 };
 
+static SV *deferred_errsv = NULL;
+
 static
 void io_handler(struct event_handler_args *peha, enum io_type io) {
     PERL_SET_CONTEXT(p5_ctx);
@@ -399,8 +397,8 @@ void io_handler(struct event_handler_args *peha, enum io_type io) {
         if (io != IO_MONITOR)
             SvREFCNT_dec(code);
 
-        if (SvTRUE(ERRSV))
-            croak(NULL);
+        if (SvTRUE(ERRSV) && !deferred_errsv)
+            deferred_errsv = newSVsv(ERRSV);
 
         FREETMPS;
         LEAVE;
@@ -409,22 +407,21 @@ void io_handler(struct event_handler_args *peha, enum io_type io) {
 
 
 static
-int replace_handler(SV * sub, SV ** ph_sub, long *phandler) {
+int replace_handler(SV * sub, SV ** ph_sub) {
     if (SvOK(sub) && SvTRUE(sub)) {
         if (*ph_sub != NULL) {
             SvSetSV(*ph_sub, sub);
-            return FALSE;
+            return 0;
         }
         *ph_sub = newSVsv(sub);
-    } else {
-        if (*ph_sub == NULL)
-            return FALSE;
-
-        SvREFCNT_dec(*ph_sub);
-        *ph_sub = NULL;
-        *phandler = 0;
+        return 1;
     }
-    return TRUE;
+    if (*ph_sub == NULL)
+        return 0;
+
+    SvREFCNT_dec(*ph_sub);
+    *ph_sub = NULL;
+    return -1;
 }
 
 
@@ -440,6 +437,9 @@ void connect_handler(struct connection_handler_args cha) {
     {
         dSP;
 
+        ENTER;
+        SAVETMPS;
+
         SvSetSV(ERRSV, &PL_sv_undef);
 
         PUSHMARK(SP);
@@ -449,8 +449,11 @@ void connect_handler(struct connection_handler_args cha) {
 
         call_sv(pch->conn_sub, G_EVAL | G_VOID | G_DISCARD | G_KEEPERR);
 
-        if (SvTRUE(ERRSV))
-            croak(NULL);
+        if (SvTRUE(ERRSV) && !deferred_errsv)
+            deferred_errsv = newSVsv(ERRSV);
+
+        FREETMPS;
+        LEAVE;
     }
 }
 
@@ -467,7 +470,6 @@ SV * CA_new(const char *class, const char *name, ...) {
     SvREADONLY_on(ca_obj);
 
     pch->chan_ref = ca_ref;
-    (void) SvREFCNT_inc(ca_ref);
 
     if (items > 2
         && SvOK(ST(2))) {
@@ -479,12 +481,14 @@ SV * CA_new(const char *class, const char *name, ...) {
 
     status = ca_create_channel(name, handler, pch, 0, &pch->chan);
     if (status != ECA_NORMAL) {
-        SvREFCNT_dec(ca_ref);
         if (pch->conn_sub)
             SvREFCNT_dec(pch->conn_sub);
+        Safefree(pch);
+        SvREFCNT_dec(ca_ref);
         croak("%s", get_error_msg(status));
     }
 
+    (void) SvREFCNT_inc(ca_ref);
     return ca_ref;
 }
 
@@ -528,13 +532,14 @@ void CA_context_destroy(const char *class) {
 void CA_change_connection_event(SV *ca_ref, SV *sub) {
     CA_channel *pch = (CA_channel *)SvIV(SvRV(ca_ref));
     caCh *handler = &connect_handler;
-    int status;
+    int status = replace_handler(sub, &pch->conn_sub);
 
-    if (! replace_handler(sub, &pch->conn_sub, (long *)&handler))
+    if (status == 0)
         return;
+    if (status < 0)
+        handler = NULL;
 
     status = ca_change_connection_event(pch->chan, handler);
-
     if (status != ECA_NORMAL) {
         croak("%s", get_error_msg(status));
     }
@@ -550,6 +555,9 @@ void rights_handler(struct access_rights_handler_args arha) {
     {
         dSP;
 
+        ENTER;
+        SAVETMPS;
+
         SvSetSV(ERRSV, &PL_sv_undef);
 
         PUSHMARK(SP);
@@ -560,21 +568,25 @@ void rights_handler(struct access_rights_handler_args arha) {
 
         call_sv(pch->rights_sub, G_EVAL | G_VOID | G_DISCARD | G_KEEPERR);
 
-        if (SvTRUE(ERRSV))
-            croak(NULL);
+        if (SvTRUE(ERRSV) && !deferred_errsv)
+            deferred_errsv = newSVsv(ERRSV);
+
+        FREETMPS;
+        LEAVE;
     }
 }
 
 void CA_replace_access_rights_event(SV *ca_ref, SV *sub) {
     CA_channel *pch = (CA_channel *)SvIV(SvRV(ca_ref));
     caArh *handler = &rights_handler;
-    int status;
+    int status = replace_handler(sub, &pch->rights_sub);
 
-    if (! replace_handler(sub, &pch->rights_sub, (long *)&handler))
+    if (status == 0)
         return;
+    if (status < 0)
+        handler = NULL;
 
     status = ca_replace_access_rights_event(pch->chan, handler);
-
     if (status != ECA_NORMAL) {
         croak("%s", get_error_msg(status));
     }
@@ -586,7 +598,7 @@ void CA_replace_access_rights_event(SV *ca_ref, SV *sub) {
 void CA_put(SV *ca_ref, SV *val, ...) {
     dXSARGS;
     CA_channel *pch = (CA_channel *)SvIV(SvRV(ca_ref));
-    int num_values = items - 1;
+    unsigned long num_values = items - 1;
     int status;
 
     if (num_values == 1) {
@@ -626,7 +638,7 @@ void CA_put(SV *ca_ref, SV *val, ...) {
             dbr_double_t *dbr_double;
             char         *dbr_string;
         } p = {0};
-        int i;
+        unsigned long i;
         chtype type = best_type(pch);
 
         switch (type) {
@@ -652,7 +664,8 @@ void CA_put(SV *ca_ref, SV *val, ...) {
             New(0, p.dbr_string, num_values * MAX_STRING_SIZE, char);
             for (i = 0; i < num_values; i++) {
                 char * src = SvPV_nolen(ST(i + 1));
-                strncpy(p.dbr_string + i, src, MAX_STRING_SIZE);
+                strncpy(p.dbr_string + i * MAX_STRING_SIZE,
+                    src, MAX_STRING_SIZE);
             }
             break;
         }
@@ -678,7 +691,7 @@ void CA_put_callback(SV *ca_ref, SV *sub, SV *val, ...) {
     dXSARGS;
     CA_channel *pch = (CA_channel *)SvIV(SvRV(ca_ref));
     SV *put_sub = newSVsv(sub);
-    int num_values = items - 2;
+    unsigned long num_values = items - 2;
     int status;
 
     if (num_values == 1) {
@@ -720,14 +733,14 @@ void CA_put_callback(SV *ca_ref, SV *sub, SV *val, ...) {
             dbr_double_t *dbr_double;
             char         *dbr_string;
         } p = {0};
-        int i;
+        unsigned long i;
         chtype type = best_type(pch);
 
         switch (type) {
         case DBF_CHAR:
             New(0, p.dbr_char, num_values, dbr_char_t);
             for (i = 0; i < num_values; i++) {
-                p.dbr_char[i] = SvIV(ST(i + 1));
+                p.dbr_char[i] = SvIV(ST(i + 2));
             }
             break;
         case DBF_LONG:
@@ -746,7 +759,8 @@ void CA_put_callback(SV *ca_ref, SV *sub, SV *val, ...) {
             New(0, p.dbr_string, num_values * MAX_STRING_SIZE, char);
             for (i = 0; i < num_values; i++) {
                 char * src = SvPV_nolen(ST(i + 2));
-                strncpy(p.dbr_string + i, src, MAX_STRING_SIZE);
+                strncpy(p.dbr_string + i * MAX_STRING_SIZE,
+                    src, MAX_STRING_SIZE);
             }
             break;
         }
@@ -819,7 +833,7 @@ void CA_put_ackt(SV *ca_ref, int ack, ...) {
         if (status != ECA_NORMAL)
             SvREFCNT_dec(put_sub);
     } else
-        status = ca_put(DBR_PUT_ACKS, pch->chan, &ackt);
+        status = ca_put(DBR_PUT_ACKT, pch->chan, &ackt);
 
     if (status != ECA_NORMAL)
         croak("%s", get_error_msg(status));
@@ -881,8 +895,8 @@ void CA_get_callback(SV *ca_ref, SV *sub, ...) {
     SV *get_sub = newSVsv(sub);
     int status;
     chtype type = best_type(pch);
-    int count = 0;
-    int i = 2;
+    unsigned long count = 0;
+    unsigned long i = 2;
     const char *croak_msg;
 
     while (items > i
@@ -949,8 +963,8 @@ SV * CA_create_subscription(SV *ca_ref, const char *mask_str, SV *sub, ...) {
     SV *mon_ref = newSViv(0);
     SV *mon_obj = newSVrv(mon_ref, "CA::Subscription");
     chtype type = best_type(pch);
-    int count = ca_element_count(pch->chan);
-    int i = 3;
+    unsigned long count = ca_element_count(pch->chan);
+    unsigned long i = 3;
     int mask = 0;
     evid event;
     int status;
@@ -1022,15 +1036,12 @@ exit_croak:
 /* CA::clear_subscription($class, $subscription) */
 
 void CA_clear_subscription(const char *class, SV *mon_ref) {
-    evid event = (evid)SvIV(SvRV(mon_ref));
-    int status;
-
     if (! sv_isa(mon_ref, "CA::Subscription")) {
         croak("Not a CA::Subscription");
     }
+    evid event = (evid)SvIV(SvRV(mon_ref));
 
-    status = ca_clear_subscription(event);
-
+    int status = ca_clear_subscription(event);
     if (status != ECA_NORMAL) {
         croak("%s", get_error_msg(status));
     }
@@ -1039,11 +1050,23 @@ void CA_clear_subscription(const char *class, SV *mon_ref) {
 
 /* CA::pend_io($class, $timeout) */
 
+static
+void do_deferred(void) {
+    if (deferred_errsv) {
+        SV *err = deferred_errsv;
+        deferred_errsv = NULL;
+        sv_setsv(ERRSV, err);
+        SvREFCNT_dec(err);
+        croak(NULL);
+    }
+}
+
 void CA_pend_io(const char *class, double timeout) {
     int status = ca_pend_io(timeout);
     if (status != ECA_NORMAL) {
         croak("%s", get_error_msg(status));
     }
+    do_deferred();
 }
 
 /* CA::test_io($class) */
@@ -1059,12 +1082,14 @@ void CA_pend_event(const char *class, double timeout) {
     if (status != ECA_TIMEOUT) {
         croak("%s", get_error_msg(status));
     }
+    do_deferred();
 }
 
 /* CA::poll($class) */
 
 void CA_poll(const char *class) {
     ca_poll();
+    do_deferred();
 }
 
 
@@ -1132,7 +1157,10 @@ void exception_handler(struct exception_handler_args eha) {
         XPUSHs(sv_2mortal(newRV_noinc((SV *)hash)));
         PUTBACK;
 
-        call_sv(exception_sub, G_EVAL | G_VOID | G_DISCARD);
+        call_sv(exception_sub, G_EVAL | G_VOID | G_DISCARD | G_KEEPERR);
+
+        if (SvTRUE(ERRSV) && !deferred_errsv)
+            deferred_errsv = newSVsv(ERRSV);
 
         FREETMPS;
         LEAVE;
@@ -1141,13 +1169,14 @@ void exception_handler(struct exception_handler_args eha) {
 
 void CA_add_exception_event(const char *class, SV *sub) {
     caExceptionHandler *handler = exception_handler;
-    int status;
+    int status = replace_handler(sub, &exception_sub);
 
-    if (! replace_handler(sub, &exception_sub, (long *)&handler))
+    if (status == 0)
         return;
+    if (status < 0)
+        handler = NULL;
 
     status = ca_add_exception_event(handler, NULL);
-
     if (status != ECA_NORMAL) {
         SvREFCNT_dec(exception_sub);
         exception_sub = NULL;
@@ -1191,7 +1220,7 @@ int printf_handler(const char *format, va_list args) {
 
         va_copy(argcopy, args);
 
-        printf_str = NEWSV(0, strlen(format) + 32);
+        printf_str = newSV(strlen(format) + 32);
         sv_vsetpvf(printf_str, format, &argcopy);
         va_end(argcopy);
 
@@ -1209,13 +1238,14 @@ int printf_handler(const char *format, va_list args) {
 
 void CA_replace_printf_handler(const char *class, SV *sub) {
     caPrintfFunc *handler = printf_handler;
-    int status;
+    int status = replace_handler(sub, &printf_sub);
 
-    if (! replace_handler(sub, &printf_sub, (long *)&handler))
+    if (status == 0)
         return;
+    if (status < 0)
+        handler = NULL;
 
     status = ca_replace_printf_handler(handler);
-
     if (status != ECA_NORMAL) {
         SvREFCNT_dec(printf_sub);
         printf_sub = NULL;
@@ -1237,7 +1267,7 @@ const char * CA_field_type(SV *ca_ref) {
 
 /* CA::element_count($ca_ref) */
 
-int CA_element_count(SV *ca_ref) {
+unsigned long CA_element_count(SV *ca_ref) {
     CA_channel *pch = (CA_channel *)SvIV(SvRV(ca_ref));
     return ca_element_count(pch->chan);
 }
@@ -1498,7 +1528,7 @@ const char *
 CA_field_type (ca_ref)
 	SV *	ca_ref
 
-int
+unsigned long
 CA_element_count (ca_ref)
 	SV *	ca_ref
 
